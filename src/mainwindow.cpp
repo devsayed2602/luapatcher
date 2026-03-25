@@ -574,8 +574,6 @@ void MainWindow::onSyncDone(QList<GameInfo> games) {
         displayRandomGames();
     } else if (m_currentMode == AppMode::Library) {
         displayLibrary();
-    } else {
-        populateFixList();
     }
 }
 
@@ -598,8 +596,6 @@ void MainWindow::onSearchChanged(const QString& text) {
             displayRandomGames();
         } else if (m_currentMode == AppMode::Library) {
             displayLibrary();
-        } else {
-            populateFixList();
         }
     }
 }
@@ -617,7 +613,6 @@ void MainWindow::doSearch() {
     int count = 0;
     for (const auto& game : m_supportedGames) {
         if (count >= 100) break;
-        if (m_currentMode == AppMode::FixManager && !game.hasFix) continue;
         if (m_currentMode == AppMode::Library) {
         }
         
@@ -631,15 +626,6 @@ void MainWindow::doSearch() {
         }
     }
     displayResults(localResults);
-    
-    if (m_currentMode == AppMode::FixManager) {
-        m_statusLabel->setText(m_gameCards.isEmpty()
-            ? "No fixes found for this game"
-            : QString("Found %1 games with fixes").arg(m_gameCards.count()));
-        m_stack->setCurrentIndex(1);
-        m_spinner->stop();
-        return;
-    }
     
     m_spinner->start();
     if (m_gameCards.isEmpty()) m_stack->setCurrentIndex(0);
