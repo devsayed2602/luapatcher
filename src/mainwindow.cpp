@@ -6,7 +6,6 @@
 #include "workers/indexdownloadworker.h"
 #include "workers/luadownloadworker.h"
 #include "workers/generatorworker.h"
-#include "workers/fixdownloadworker.h"
 #include "workers/restartworker.h"
 #include "utils/colors.h"
 #include "utils/paths.h"
@@ -244,11 +243,6 @@ void MainWindow::initUI() {
     m_tabLua->setFixedHeight(44);
     connect(m_tabLua, &QPushButton::clicked, this, [this](){ switchMode(AppMode::LuaPatcher); });
     sidebarLayout->addWidget(m_tabLua);
-    
-    m_tabFix = new GlassButton(MaterialIcons::Build, " Fix Manager", "", Colors::SECONDARY);
-    m_tabFix->setFixedHeight(44);
-    connect(m_tabFix, &QPushButton::clicked, this, [this](){ switchMode(AppMode::FixManager); });
-    sidebarLayout->addWidget(m_tabFix);
 
     m_tabLibrary = new GlassButton(MaterialIcons::Library, " Library", "", Colors::ACCENT_GREEN);
     m_tabLibrary->setFixedHeight(44);
@@ -288,13 +282,6 @@ void MainWindow::initUI() {
     m_btnAddToLibrary->setEnabled(false);
     connect(m_btnAddToLibrary, &QPushButton::clicked, this, &MainWindow::doAddGame);
     sidebarLayout->addWidget(m_btnAddToLibrary);
-
-    m_btnApplyFix = new GlassButton(MaterialIcons::Build, "Apply Fix", "Apply Fix Files", Colors::SECONDARY);
-    m_btnApplyFix->setFixedHeight(52);
-    m_btnApplyFix->setEnabled(false);
-    m_btnApplyFix->hide();
-    connect(m_btnApplyFix, &QPushButton::clicked, this, &MainWindow::doApplyFix);
-    sidebarLayout->addWidget(m_btnApplyFix);
 
     m_btnRemove = new GlassButton(MaterialIcons::Delete, "Remove", "Remove from Library", Colors::ACCENT_RED);
     m_btnRemove->setFixedHeight(52);
@@ -886,7 +873,6 @@ void MainWindow::onCardClicked(GameCard* card) {
     
     QMap<QString, QString> data = card->gameData();
     m_selectedGame = data;
-    bool hasFix = (data["hasFix"] == "true");
     bool isSupported = (data["supported"] == "true");
     
     if (m_currentMode == AppMode::LuaPatcher) {
@@ -897,13 +883,6 @@ void MainWindow::onCardClicked(GameCard* card) {
         } else {
             m_btnAddToLibrary->setDescription(QString("Generate patch for %1").arg(data["name"]));
             m_btnAddToLibrary->setColor(Colors::PRIMARY);
-        }
-    } else if (m_currentMode == AppMode::FixManager) {
-        if (hasFix) {
-            m_btnApplyFix->setEnabled(true);
-            m_btnApplyFix->setDescription(QString("Apply fix for %1").arg(data["name"]));
-        } else {
-            m_btnApplyFix->setEnabled(false);
         }
     } else if (m_currentMode == AppMode::Library) {
         m_btnRemove->setEnabled(true);
@@ -1057,35 +1036,6 @@ void MainWindow::doRestart() {
     m_restartWorker->start();
 }
 
-void MainWindow::doApplyFix() {
-    if (m_selectedGame.isEmpty()) return;
-    QString gamePath = QFileDialog::getExistingDirectory(this,
-        QString("Select Game Folder for %1").arg(m_selectedGame["name"]),
-        QString(), QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
-    if (gamePath.isEmpty()) { m_statusLabel->setText("Fix cancelled - no folder selected"); return; }
-    
-    m_btnApplyFix->setEnabled(false);
-    m_progress->setValue(0);
-    m_terminalDialog->clear();
-    m_terminalDialog->appendLog(QString("Initializing fix for: %1").arg(m_selectedGame["name"]), "INFO");
-    m_terminalDialog->appendLog(QString("Target folder: %1").arg(gamePath), "INFO");
-    m_terminalDialog->show();
-    
-    m_fixWorker = new FixDownloadWorker(m_selectedGame["appid"], gamePath, this);
-    connect(m_fixWorker, &FixDownloadWorker::finished, this, [this](QString) {
-        m_progress->hide(); m_btnApplyFix->setEnabled(true);
-        m_statusLabel->setText("Fix Applied Successfully!");
-        m_terminalDialog->setFinished(true);
-    });
-    connect(m_fixWorker, &FixDownloadWorker::progress, [this](qint64 dl, qint64 total) {
-        if (total > 0) m_progress->setValue(static_cast<int>(dl * 100 / total));
-    });
-    connect(m_fixWorker, &FixDownloadWorker::status, [this](QString msg) { m_statusLabel->setText(msg); });
-    connect(m_fixWorker, &FixDownloadWorker::log, m_terminalDialog, &TerminalDialog::appendLog);
-    connect(m_fixWorker, &FixDownloadWorker::error, this, &MainWindow::onPatchError);
-    m_fixWorker->start();
-}
-
 // ---- Mode switching ----
 void MainWindow::cancelNameFetches() {
     m_fetchingNames = false;
@@ -1100,22 +1050,17 @@ void MainWindow::switchMode(AppMode mode) {
     updateModeUI();
     
     m_btnAddToLibrary->hide();
-    m_btnApplyFix->hide();
     m_btnRemove->hide();
     
     if (m_currentMode == AppMode::LuaPatcher) {
         m_btnAddToLibrary->show();
-    } else if (m_currentMode == AppMode::FixManager) {
-        m_btnApplyFix->show();
     } else if (m_currentMode == AppMode::Library) {
         m_btnRemove->show();
     }
     
     onCardClicked(nullptr);
     clearGameCards();
-    if (m_currentMode == AppMode::FixManager) {
-        populateFixList();
-    } else if (m_currentMode == AppMode::Library) {
+    if (m_currentMode == AppMode::Library) {
         displayLibrary();
     } else {
         if (m_searchInput->text().trimmed().isEmpty()) {
@@ -1126,39 +1071,8 @@ void MainWindow::switchMode(AppMode mode) {
     }
 }
 
-void MainWindow::populateFixList() {
-    m_statusLabel->setText("Listing available fixes...");
-    cancelNameFetches();
-    m_pendingNameFetchIds.clear();
-    
-    QJsonArray fixGames;
-    int count = 0;
-    for (const auto& game : m_supportedGames) {
-        if (count >= 100) break;
-        if (game.hasFix) {
-            QJsonObject item;
-            item["id"] = game.id;
-            item["name"] = (game.name.isEmpty() || game.name == game.id || game.name == "Unknown Game")
-                ? "Loading..." : game.name;
-            if (game.name.isEmpty() || game.name == game.id || game.name == "Unknown Game")
-                m_pendingNameFetchIds.append(game.id);
-            item["supported_local"] = true;
-            fixGames.append(item);
-            count++;
-        }
-    }
-    displayResults(fixGames);
-    if (!m_pendingNameFetchIds.isEmpty()) startBatchNameFetch();
-    m_statusLabel->setText(m_gameCards.isEmpty()
-        ? "No fixes available in current index."
-        : QString("Found %1 available fixes").arg(m_gameCards.count()));
-    m_stack->setCurrentIndex(1);
-    m_spinner->stop();
-}
-
 void MainWindow::updateModeUI() {
     m_tabLua->setActive(m_currentMode == AppMode::LuaPatcher);
-    m_tabFix->setActive(m_currentMode == AppMode::FixManager);
     m_tabLibrary->setActive(m_currentMode == AppMode::Library);
     m_stack->setCurrentIndex(1);
 }

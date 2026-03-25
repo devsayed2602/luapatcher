@@ -28,7 +28,6 @@ class IndexDownloadWorker;
 class LuaDownloadWorker;
 class RestartWorker;
 class GeneratorWorker;
-class FixDownloadWorker;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -36,7 +35,6 @@ class MainWindow : public QMainWindow {
 public:
     enum class AppMode {
         LuaPatcher,
-        FixManager,
         Library
     };
 
@@ -63,12 +61,10 @@ private slots:
     void onPatchDone(QString path);
     void onPatchError(QString error);
     void doRestart();
-    void doApplyFix();
     void doRemoveGame();
     void switchMode(AppMode mode);
     void updateModeUI();
     void processNextNameFetch();
-    void populateFixList();
     void loadVisibleThumbnails();
 
 private:
@@ -97,12 +93,10 @@ private:
     
     // Header & Tabs
     GlassButton* m_tabLua;
-    GlassButton* m_tabFix;
     GlassButton* m_tabLibrary;
     AppMode m_currentMode;
 
     GlassButton* m_btnAddToLibrary;
-    GlassButton* m_btnApplyFix;
     GlassButton* m_btnRemove;
     GlassButton* m_btnRestart;
     TerminalDialog* m_terminalDialog;
@@ -123,7 +117,6 @@ private:
     IndexDownloadWorker* m_syncWorker;
     LuaDownloadWorker* m_dlWorker;
     GeneratorWorker* m_genWorker;
-    FixDownloadWorker* m_fixWorker;
     RestartWorker* m_restartWorker;
     
     // Batch name fetching
