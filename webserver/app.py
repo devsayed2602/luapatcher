@@ -297,6 +297,19 @@ def register_username():
     }), 201
 
 
+@app.route('/api/user/count')
+def get_user_count():
+    """Get the total number of registered users"""
+    if not redis_client:
+        return jsonify({'error': 'Database unavailable'}), 503
+    
+    count = redis_client.get('users:count')
+    
+    return jsonify({
+        'total_users': int(count) if count else 0
+    })
+
+
 if __name__ == '__main__':
     # Local development server
     print(f"Games directory: {GAMES_DIR}")
