@@ -21,7 +21,9 @@ public:
         Search,
         Gamepad,
         CheckCircle,
-        Flash         // Lightning bolt
+        Flash,        // Lightning bolt
+        Settings,
+        Discord
     };
 
     static void draw(QPainter& p, const QRectF& rect, const QColor& color, Icon icon) {
@@ -49,6 +51,8 @@ public:
         case Gamepad:    drawGamepad(p); break;
         case CheckCircle:drawCheckCircle(p); break;
         case Flash:      drawFlash(p); break;
+        case Settings:   drawSettings(p); break;
+        case Discord:    drawDiscord(p); break;
         }
 
         p.restore();
@@ -268,6 +272,59 @@ private:
         path.lineTo(13, 11);
         path.closeSubpath();
         p.drawPath(path);
+    }
+
+    // Settings / Gear
+    static void drawSettings(QPainter& p) {
+        // Let's use a simpler gear:
+        QPen pen(p.brush().color(), 2.5);
+        p.setBrush(Qt::NoBrush);
+        p.setPen(pen);
+        p.drawEllipse(QRectF(8, 8, 8, 8));
+        
+        p.setPen(QPen(p.brush().color(), 3, Qt::SolidLine, Qt::FlatCap));
+        // spokes
+        p.drawLine(12, 2, 12, 6);
+        p.drawLine(12, 18, 12, 22);
+        p.drawLine(2, 12, 6, 12);
+        p.drawLine(18, 12, 22, 12);
+        
+        p.drawLine(5, 5, 8, 8);
+        p.drawLine(19, 19, 16, 16);
+        p.drawLine(19, 5, 16, 8);
+        p.drawLine(5, 19, 8, 16);
+    }
+
+    // Discord logo (simplified)
+    static void drawDiscord(QPainter& p) {
+        QPainterPath path;
+        path.moveTo(18, 6);
+        path.cubicTo(16.5, 5.5, 15, 5, 13.5, 5);
+        path.lineTo(13, 5.5);
+        path.cubicTo(11.5, 5.5, 10.5, 5.5, 9, 5.5);
+        path.lineTo(8.5, 5);
+        path.cubicTo(7, 5, 5.5, 5.5, 4, 6);
+        path.cubicTo(2, 11, 2, 16, 3, 19);
+        path.cubicTo(5, 20.5, 7, 21, 9, 21);
+        path.lineTo(10, 19.5);
+        path.cubicTo(8.5, 19, 7.5, 18, 6.5, 17);
+        path.lineTo(7.5, 16);
+        path.cubicTo(9, 17, 10.5, 17.5, 12, 17.5);
+        path.cubicTo(13.5, 17.5, 15, 17, 16.5, 16);
+        path.lineTo(17.5, 17);
+        path.cubicTo(16.5, 18, 15.5, 19, 14, 19.5);
+        path.lineTo(15, 21);
+        path.cubicTo(17, 21, 19, 20.5, 21, 19);
+        path.cubicTo(22, 16, 22, 11, 18, 6);
+        path.closeSubpath();
+        
+        p.setBrush(p.brush().color());
+        p.setPen(Qt::NoPen);
+        p.drawPath(path);
+        
+        p.setBrush(QColor(0, 0, 0, 150));
+        p.drawEllipse(8, 11, 2, 2.5);
+        p.drawEllipse(14, 11, 2, 2.5);
     }
 };
 

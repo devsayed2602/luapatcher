@@ -5,8 +5,11 @@ Flask application to serve Lua files for the Steam Lua Patcher desktop app.
 
 from flask import Flask, send_from_directory, jsonify, abort, request, Response
 import os
+import json
+from datetime import datetime
 from functools import wraps
 from dotenv import load_dotenv
+from upstash_redis import Redis
 
 # Load environment variables from .env file
 load_dotenv()
@@ -20,6 +23,18 @@ ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD')
 
 if not ACCESS_TOKEN or not ADMIN_PASSWORD:
     print("WARNING: SERVER_ACCESS_TOKEN or ADMIN_PASSWORD not set in environment!")
+
+# Upstash Redis
+REDIS_URL = os.environ.get('UPSTASH_REDIS_REST_URL')
+REDIS_TOKEN = os.environ.get('UPSTASH_REDIS_REST_TOKEN')
+redis_client = None
+if REDIS_URL and REDIS_TOKEN:
+    try:
+        redis_client = Redis(url=REDIS_URL, token=REDIS_TOKEN)
+    except Exception as e:
+        print(f"WARNING: Could not connect to Upstash Redis: {e}")
+else:
+    print("WARNING: UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN not set!")
 
 # Directory containing all Lua game files
 GAMES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'games')
@@ -224,6 +239,62 @@ def check_availability(app_id):
         'app_id': app_id,
         'available': exists
     })
+
+
+@app.route('/api/user/check/<username>')
+def check_username(username):
+    """Check if a username is available"""
+    if not redis_client:
+        return jsonify({'error': 'Database unavailable'}), 503
+    
+    if not username or len(username) < 3 or len(username) > 20:
+        return jsonify({'available': False, 'error': 'Username must be 3-20 characters'}), 400
+    
+    key = f"users:name:{username.lower()}"
+    existing = redis_client.get(key)
+    return jsonify({
+        'username': username,
+        'available': existing is None
+    })
+
+
+@app.route('/api/user/register', methods=['POST'])
+def register_username():
+    """Register a new unique username"""
+    if not redis_client:
+        return jsonify({'error': 'Database unavailable'}), 503
+    
+    data = request.get_json()
+    if not data or 'username' not in data:
+        return jsonify({'error': 'Username is required'}), 400
+    
+    username = data['username'].strip()
+    
+    # Validation
+    if len(username) < 3 or len(username) > 20:
+        return jsonify({'error': 'Username must be 3-20 characters'}), 400
+    
+    import re
+    if not re.match(r'^[a-zA-Z0-9_]+$', username):
+        return jsonify({'error': 'Only letters, numbers, and underscores allowed'}), 400
+    
+    key = f"users:name:{username.lower()}"
+    existing = redis_client.get(key)
+    if existing is not None:
+        return jsonify({'error': 'Username already taken'}), 409
+    
+    # Register
+    user_data = json.dumps({
+        'username': username,
+        'created_at': datetime.utcnow().isoformat()
+    })
+    redis_client.set(key, user_data)
+    redis_client.incr('users:count')
+    
+    return jsonify({
+        'success': True,
+        'username': username
+    }), 201
 
 
 if __name__ == '__main__':

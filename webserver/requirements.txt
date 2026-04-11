@@ -2,3 +2,4 @@ Flask
 gunicorn
 requests
 python-dotenv
+upstash-redis

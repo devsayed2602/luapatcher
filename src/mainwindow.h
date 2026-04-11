@@ -79,8 +79,10 @@ private:
     void loadNameCache();
     void saveNameCache();
     bool loadCachedIndex();
+    void updateAmbientGlow();
 
     // UI Components
+    QString m_username;
     QLabel* m_statusLabel;
     QLineEdit* m_searchInput;
     QStackedWidget* m_stack;
@@ -133,6 +135,11 @@ private:
     // Thumbnail cache
     QMap<QString, QPixmap> m_thumbnailCache;
     QSet<QString> m_activeThumbnailDownloads;
+    
+    // Ambient Glow
+    QTimer* m_glowTimer;
+    QColor m_currentGlowColor;
+    QColor m_targetGlowColor;
 };
 
 #endif // MAINWINDOW_H

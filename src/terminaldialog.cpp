@@ -20,9 +20,9 @@ TerminalDialog::TerminalDialog(QWidget* parent)
     m_logView->setFont(QFont("Consolas, Monaco, monospace", 10));
     m_logView->setStyleSheet(QString(
         "QTextEdit {"
-        "    background-color: %1;"
+        "    background-color: rgba(0, 0, 0, 76);"
         "    color: %2;"
-        "    border: 1px solid %3;"
+        "    border: 1px solid rgba(255, 255, 255, 25);"
         "    border-radius: 16px;"
         "    padding: 14px;"
         "    selection-background-color: %4;"
@@ -43,9 +43,9 @@ TerminalDialog::TerminalDialog(QWidget* parent)
         "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {"
         "    height: 0px;"
         "}"
-    ).arg(Colors::SURFACE_CONTAINER)
+    ).arg("rgba(0,0,0,76)")
      .arg(Colors::ON_SURFACE)
-     .arg(Colors::OUTLINE_VARIANT)
+     .arg("rgba(255,255,255,50)")
      .arg(Colors::PRIMARY)
      .arg(Colors::SURFACE)
      .arg(Colors::OUTLINE));
@@ -91,10 +91,9 @@ TerminalDialog::TerminalDialog(QWidget* parent)
     // Material surface dialog background
     setStyleSheet(QString(
         "QDialog {"
-        "    background: %1;"
+        "    background: rgba(12, 14, 22, 242);"
         "    border-radius: 28px;"
-        "}")
-        .arg(Colors::SURFACE_CONTAINER_HIGH));
+        "}"));
 }
 
 void TerminalDialog::appendLog(const QString& message, const QString& level) {

@@ -110,40 +110,48 @@ void GlassButton::paintEvent(QPaintEvent* event) {
     // ── Background ──
     QColor bgColor;
     if (m_isActive) {
-        // Active: subtle bright frosted tint
-        bgColor = QColor(255, 255, 255, 25);
+        // Active: frosted glass
+        bgColor = QColor(255, 255, 255, 15);
     } else if (isPressed) {
         QColor accent(m_accentColor);
         accent.setAlpha(40);
         bgColor = accent;
     } else if (isHover) {
-        bgColor = Colors::toQColor(Colors::SURFACE_CONTAINER_HIGH);
+        bgColor = QColor(255, 255, 255, 25);
     } else {
-        bgColor = Colors::toQColor(Colors::SURFACE_CONTAINER);
+        bgColor = QColor(255, 255, 255, 5);
     }
     
     QPainterPath bgPath;
     bgPath.addRoundedRect(bgRect, radius, radius);
     painter.fillPath(bgPath, bgColor);
     
-    // ── Active indicator pill (left) ──
+    // ── Active indicator neon bar (left) ──
     if (m_isActive) {
+        QLinearGradient neonGrad(0, 0, 8, 0);
+        QColor primary = Colors::currentTheme.primary;
+        neonGrad.setColorAt(0, primary);
+        
+        QColor fadePrimary = primary;
+        fadePrimary.setAlpha(0);
+        neonGrad.setColorAt(1, fadePrimary);
+        
+        painter.fillRect(QRectF(0, h * 0.15, 6, h * 0.7), neonGrad);
+        
         QPainterPath pill;
-        pill.addRoundedRect(QRectF(2, h * 0.25, 4, h * 0.5), 2, 2);
-        QColor pillColor = Colors::toQColor(Colors::ON_SURFACE);
-        pillColor.setAlpha(200);
-        painter.fillPath(pill, pillColor);
+        pill.addRoundedRect(QRectF(0, h * 0.15, 3, h * 0.7), 1.5, 1.5);
+        painter.fillPath(pill, primary);
     }
     
     // ── Border ──
     QColor borderColor;
     if (m_isActive) {
-        borderColor = QColor(255, 255, 255, 60);
+        borderColor = QColor(255, 255, 255, 40);
     } else if (isHover || isPressed) {
         borderColor = Colors::toQColor(Colors::PRIMARY);
-        borderColor.setAlpha(100);
+        borderColor.setAlpha(80);
     } else {
-        borderColor = Colors::toQColor(Colors::OUTLINE_VARIANT);
+        borderColor = QColor(255, 255, 255, 15);
     }
     QPen pen(borderColor, 1);
     painter.setPen(pen);
@@ -160,8 +168,10 @@ void GlassButton::paintEvent(QPaintEvent* event) {
     // Icon background: rounded container with accent color
     QColor iconBgColor(m_accentColor);
     if (m_isActive) {
-        // Instead of solid primary, keep the glass look
-        iconBgColor = QColor(255, 255, 255, 40);
+        iconBgColor = Colors::currentTheme.primary;
+        iconBgColor.setAlpha(60);
+    } else {
+        iconBgColor.setAlpha(30);
     }
     
     QPainterPath iconBgPath;
@@ -176,7 +186,7 @@ void GlassButton::paintEvent(QPaintEvent* event) {
     );
     
     QColor iconColor = m_isActive
-        ? Colors::toQColor(Colors::ON_SURFACE)
+        ? Colors::currentTheme.primary
         : QColor("#FFFFFF");
     MaterialIcons::draw(painter, iconDrawRect, iconColor, m_icon);
     
@@ -185,7 +195,7 @@ void GlassButton::paintEvent(QPaintEvent* event) {
     int textW = r.width() - textX - 8;
     
     QColor textColor = m_isActive
-        ? Colors::toQColor(Colors::ON_SURFACE)
+        ? Colors::currentTheme.primary
         : Colors::toQColor(Colors::ON_SURFACE);
     painter.setPen(textColor);
     

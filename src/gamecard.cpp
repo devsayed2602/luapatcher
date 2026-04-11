@@ -12,10 +12,10 @@
 GameCard::GameCard(QWidget* parent)
     : QWidget(parent)
 {
-    setMinimumSize(160, 200);
+    setMinimumSize(160, 240);
     setCursor(Qt::PointingHandCursor);
-    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    setFixedHeight(220);
+    setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    setFixedSize(160, 240);
 }
 
 void GameCard::setGameData(const QMap<QString, QString>& data) {
@@ -30,7 +30,35 @@ QMap<QString, QString> GameCard::gameData() const {
 void GameCard::setThumbnail(const QPixmap& pixmap) {
     m_thumbnail = pixmap;
     m_hasThumbnail = !pixmap.isNull();
+    if (m_hasThumbnail) extractDominantColor(pixmap);
     update();
+}
+
+QColor GameCard::getDominantColor() const {
+    return m_dominantColor;
+}
+
+void GameCard::extractDominantColor(const QPixmap& pixmap) {
+    if (pixmap.isNull()) {
+        m_dominantColor = QColor();
+        return;
+    }
+    QImage img = pixmap.toImage().scaled(30, 30, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    QColor mostVibrant = Colors::toQColor(Colors::PRIMARY);
+    double maxScore = -1.0;
+    
+    for (int y = 0; y < img.height(); y += 2) {
+        for (int x = 0; x < img.width(); x += 2) {
+            QColor c = img.pixelColor(x, y);
+            if (c.saturationF() < 0.1 || c.lightnessF() < 0.1 || c.lightnessF() > 0.9) continue;
+            double score = c.saturationF() * c.lightnessF() * (c.lightnessF() > 0.5 ? 1.2 : 1.0);
+            if (score > maxScore) {
+                maxScore = score;
+                mostVibrant = c;
+            }
+        }
+    }
+    if (maxScore > 0) m_dominantColor = mostVibrant;
 }
 
 bool GameCard::hasThumbnail() const {
@@ -97,27 +125,30 @@ void GameCard::paintEvent(QPaintEvent* event) {
     painter.setRenderHint(QPainter::SmoothPixmapTransform);
 
     QRectF cardRect = QRectF(rect()).adjusted(4, 4, -4, -4);
-    int radius = 16; // Material M3 standard
+    int radius = 20; // Liquid glass soft corners
     bool supported = (m_data.value("supported") == "true");
 
-    // ── Elevation shadow ──
+    // ── Outer Glow ──
     if (m_hovered || m_selected) {
-        // Level 2 elevation
-        for (int i = 4; i >= 1; --i) {
-            QColor shadowColor(0, 0, 0, 12 * i);
-            QPen shadowPen(shadowColor, 0.5);
+        QColor glowColor = m_dominantColor.isValid() ? m_dominantColor : Colors::toQColor(Colors::PRIMARY);
+        int maxGlow = m_selected ? 6 : 4;
+        for (int i = maxGlow; i >= 1; --i) {
+            QColor shadowColor = glowColor;
+            shadowColor.setAlpha(m_selected ? 40 / i : 20 / i);
+            QPen shadowPen(shadowColor, 2.0);
             painter.setPen(shadowPen);
             painter.setBrush(Qt::NoBrush);
-            painter.drawRoundedRect(cardRect.adjusted(-i, -i + 1, i, i + 1), radius + i, radius + i);
+            painter.drawRoundedRect(cardRect.adjusted(-i*2, -i*2, i*2, i*2), radius + i, radius + i);
         }
-    } else {
-        // Level 1 elevation
+    } else if (m_hasThumbnail && m_dominantColor.isValid()) {
+        // Subtle ambient glow even when resting
         for (int i = 2; i >= 1; --i) {
-            QColor shadowColor(0, 0, 0, 15 * i);
-            QPen shadowPen(shadowColor, 0.5);
+            QColor shadowColor = m_dominantColor;
+            shadowColor.setAlpha(10 / i);
+            QPen shadowPen(shadowColor, 2.0);
             painter.setPen(shadowPen);
             painter.setBrush(Qt::NoBrush);
-            painter.drawRoundedRect(cardRect.adjusted(-i, i * 0.5, i, i + 0.5), radius + i, radius + i);
+            painter.drawRoundedRect(cardRect.adjusted(-i*2, -i*2, i*2, i*2), radius + i, radius + i);
         }
     }
 
@@ -215,10 +246,11 @@ void GameCard::paintEvent(QPaintEvent* event) {
     // Material surface overlay for readability
     QLinearGradient infoGrad(infoRect.topLeft(), infoRect.bottomLeft());
     if (m_hasThumbnail) {
-        infoGrad.setColorAt(0, QColor(0, 0, 0, 0));
-        infoGrad.setColorAt(0.3, QColor(0, 0, 0, 180));
-        infoGrad.setColorAt(1, QColor(0, 0, 0, 240));
+        infoGrad.setColorAt(0, QColor(8, 8, 12, 180));
+        infoGrad.setColorAt(1, QColor(8, 8, 12, 220));
         painter.fillRect(infoRect.toRect(), infoGrad);
+        painter.setPen(QPen(QColor(255, 255, 255, 30), 1));
+        painter.drawLine(infoRect.topLeft(), infoRect.topRight());
     } else {
         // Flat frosted bottom
         QColor frostedBottom = Colors::toQColor(Colors::SURFACE_CONTAINER_HIGHEST);
@@ -257,14 +289,15 @@ void GameCard::paintEvent(QPaintEvent* event) {
 
     // ── Border & selection state ──
     if (m_selected) {
-        // Material primary border
-        QPen selPen(Colors::toQColor(Colors::PRIMARY), 2.5);
+        // Glowing primary border
+        QColor glowColor = m_dominantColor.isValid() ? m_dominantColor : Colors::toQColor(Colors::PRIMARY);
+        QPen selPen(glowColor, 2.5);
         painter.setPen(selPen);
         painter.setBrush(Qt::NoBrush);
         painter.drawRoundedRect(cardRect, radius, radius);
     } else if (m_hovered) {
-        // Subtle outline on hover
-        QPen hovPen(Colors::toQColor(Colors::OUTLINE), 1.2);
+        // Subtle glass outline on hover
+        QPen hovPen(Colors::toQColor(Colors::OUTLINE), 1.5);
         painter.setPen(hovPen);
         painter.setBrush(Qt::NoBrush);
         painter.drawRoundedRect(cardRect, radius, radius);
@@ -273,13 +306,13 @@ void GameCard::paintEvent(QPaintEvent* event) {
         painter.setClipPath(clipPath);
         QLinearGradient topShine(cardRect.topLeft(),
                                 QPointF(cardRect.left(), cardRect.top() + 30));
-        topShine.setColorAt(0, QColor(255, 255, 255, 12));
+        topShine.setColorAt(0, QColor(255, 255, 255, 15));
         topShine.setColorAt(1, QColor(255, 255, 255, 0));
         painter.fillRect(QRectF(cardRect.left(), cardRect.top(),
                                 cardRect.width(), 30), topShine);
         painter.setClipRect(rect());
     } else {
-        // Resting outline variant
+        // Glass semitransparent outline
         QPen borderPen(Colors::toQColor(Colors::OUTLINE_VARIANT), 1);
         painter.setPen(borderPen);
         painter.setBrush(Qt::NoBrush);

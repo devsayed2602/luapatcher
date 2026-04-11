@@ -3,6 +3,15 @@
 
 #include <QString>
 #include <QColor>
+#include <QPixmap>
+#include <QImage>
+
+struct DynamicTheme {
+    QColor primary = QColor("#D0BCFF");
+    QColor secondary = QColor("#CCC2DC");
+    QColor glow = QColor(208, 188, 255, 60);
+    QColor accent = QColor("#A8DB8F");
+};
 
 class Colors {
 public:
@@ -57,6 +66,9 @@ public:
 
     // Helper to convert string to QColor
     static QColor toQColor(const QString& colorStr);
+
+    static DynamicTheme currentTheme;
+    static void extractFromPixmap(const QPixmap& pixmap);
 };
 
 #endif // COLORS_H

@@ -22,6 +22,7 @@ public:
     bool isSelected() const;
 
     QString appId() const;
+    QColor getDominantColor() const;
 
     void setSkeleton(bool skeleton);
     bool isSkeleton() const;
@@ -48,6 +49,8 @@ private:
     QTimer* m_skeletonTimer = nullptr;
     qreal m_skeletonPulse = 0.0;
     bool m_pulseIncreasing = true;
+    QColor m_dominantColor;
+    void extractDominantColor(const QPixmap& pixmap);
 };
 
 #endif // GAMECARD_H

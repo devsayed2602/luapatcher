@@ -1,17 +1,17 @@
 #include "colors.h"
 
-// Pure Black Theme - Surface colors
-const QString Colors::SURFACE              = "#000000";
-const QString Colors::SURFACE_DIM          = "#000000";
-const QString Colors::SURFACE_BRIGHT       = "#1A1A1A";
-const QString Colors::SURFACE_CONTAINER    = "#0A0A0A";
-const QString Colors::SURFACE_CONTAINER_HIGH    = "#141414";
-const QString Colors::SURFACE_CONTAINER_HIGHEST = "#1E1E1E";
-const QString Colors::SURFACE_VARIANT      = "#2A2A2A";
+// Liquid Glass Theme - Surface colors
+const QString Colors::SURFACE              = "rgba(6, 8, 15, 0.95)";
+const QString Colors::SURFACE_DIM          = "rgba(4, 6, 12, 0.98)";
+const QString Colors::SURFACE_BRIGHT       = "rgba(20, 24, 34, 0.85)";
+const QString Colors::SURFACE_CONTAINER    = "rgba(10, 12, 20, 0.70)";
+const QString Colors::SURFACE_CONTAINER_HIGH    = "rgba(14, 18, 28, 0.80)";
+const QString Colors::SURFACE_CONTAINER_HIGHEST = "rgba(20, 24, 36, 0.85)";
+const QString Colors::SURFACE_VARIANT      = "rgba(30, 34, 48, 0.60)";
 const QString Colors::ON_SURFACE           = "#E6E1E5";
 const QString Colors::ON_SURFACE_VARIANT   = "#CAC4D0";
-const QString Colors::OUTLINE              = "#6E6E6E";
-const QString Colors::OUTLINE_VARIANT      = "#2A2A2A";
+const QString Colors::OUTLINE              = "rgba(255, 255, 255, 0.15)";
+const QString Colors::OUTLINE_VARIANT      = "rgba(255, 255, 255, 0.08)";
 
 // Primary (Purple) - unchanged
 const QString Colors::PRIMARY              = "#D0BCFF";
@@ -50,5 +50,60 @@ const QString Colors::TEXT_PRIMARY         = "#E6E1E5";  // ON_SURFACE
 const QString Colors::TEXT_SECONDARY       = "#CAC4D0";  // ON_SURFACE_VARIANT
 
 QColor Colors::toQColor(const QString& colorStr) {
+    // QColor cannot parse CSS rgba() strings, so we handle it manually
+    if (colorStr.startsWith("rgba(") && colorStr.endsWith(")")) {
+        QString inner = colorStr.mid(5, colorStr.length() - 6);
+        QStringList parts = inner.split(",");
+        if (parts.size() == 4) {
+            int r = parts[0].trimmed().toInt();
+            int g = parts[1].trimmed().toInt();
+            int b = parts[2].trimmed().toInt();
+            double aVal = parts[3].trimmed().toDouble();
+            int a = (aVal <= 1.0) ? qRound(aVal * 255.0) : qRound(aVal);
+            return QColor(r, g, b, a);
+        }
+    }
     return QColor(colorStr);
+}
+
+DynamicTheme Colors::currentTheme;
+
+void Colors::extractFromPixmap(const QPixmap& pixmap) {
+    if (pixmap.isNull()) return;
+
+    QImage img = pixmap.toImage().scaled(50, 50, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    
+    QColor mostVibrant = QColor("#D0BCFF");
+    double maxScore = -1.0;
+    
+    for (int y = 0; y < img.height(); y += 2) {
+        for (int x = 0; x < img.width(); x += 2) {
+            QColor c = img.pixelColor(x, y);
+            if (c.saturationF() < 0.1 || c.lightnessF() < 0.1 || c.lightnessF() > 0.9) continue;
+            
+            double score = c.saturationF() * c.lightnessF() * (c.lightnessF() > 0.5 ? 1.2 : 1.0);
+            if (score > maxScore) {
+                maxScore = score;
+                mostVibrant = c;
+            }
+        }
+    }
+    
+    if (maxScore > 0) {
+        currentTheme.primary = mostVibrant;
+        
+        int h, s, l, a;
+        mostVibrant.getHsl(&h, &s, &l, &a);
+        
+        QColor secondary;
+        secondary.setHsl((h + 30) % 360, qMax(0, s - 20), l, a);
+        currentTheme.secondary = secondary;
+        
+        currentTheme.glow = mostVibrant;
+        currentTheme.glow.setAlpha(80);
+        
+        QColor accent;
+        accent.setHsl((h + 180) % 360, s, qMin(255, l + 20), a); // Complementary hue for accent
+        currentTheme.accent = accent;
+    }
 }

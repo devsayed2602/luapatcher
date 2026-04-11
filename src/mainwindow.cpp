@@ -10,6 +10,7 @@
 #include "utils/colors.h"
 #include "utils/paths.h"
 #include "config.h"
+#include "onboardingdialog.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -32,6 +33,7 @@
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QMimeData>
+#include <QSettings>
 
 // ── Inline helper: a QWidget that paints a single Material icon ──
 class MaterialIconWidget : public QWidget {
@@ -107,9 +109,28 @@ MainWindow::MainWindow(QWidget* parent)
     
     initUI();
     
+    // Check for saved username, show onboarding if needed
+    QSettings settings("LuaPatcher", "SteamLuaPatcher");
+    m_username = settings.value("username", "").toString();
+    if (m_username.isEmpty()) {
+        QTimer::singleShot(100, this, [this]() {
+            OnboardingDialog dialog(this);
+            if (dialog.exec() == QDialog::Accepted) {
+                m_username = dialog.username();
+                QSettings s("LuaPatcher", "SteamLuaPatcher");
+                s.setValue("username", m_username);
+            }
+        });
+    }
+    
     m_debounceTimer = new QTimer(this);
     m_debounceTimer->setSingleShot(true);
     connect(m_debounceTimer, &QTimer::timeout, this, &MainWindow::doSearch);
+    
+    m_currentGlowColor = Colors::toQColor(Colors::PRIMARY);
+    m_targetGlowColor = m_currentGlowColor;
+    m_glowTimer = new QTimer(this);
+    connect(m_glowTimer, &QTimer::timeout, this, &MainWindow::updateAmbientGlow);
     
     QTimer::singleShot(10, this, [this]() {
         m_networkManager = new QNetworkAccessManager(this);
@@ -126,10 +147,42 @@ MainWindow::~MainWindow() {
     }
 }
 
+void MainWindow::updateAmbientGlow() {
+    int dr = m_targetGlowColor.red() - m_currentGlowColor.red();
+    int dg = m_targetGlowColor.green() - m_currentGlowColor.green();
+    int db = m_targetGlowColor.blue() - m_currentGlowColor.blue();
+    
+    if (qAbs(dr) < 2 && qAbs(dg) < 2 && qAbs(db) < 2) {
+        m_currentGlowColor = m_targetGlowColor;
+        m_glowTimer->stop();
+    } else {
+        m_currentGlowColor.setRed(m_currentGlowColor.red() + dr * 0.1);
+        m_currentGlowColor.setGreen(m_currentGlowColor.green() + dg * 0.1);
+        m_currentGlowColor.setBlue(m_currentGlowColor.blue() + db * 0.1);
+    }
+    update();
+}
+
 void MainWindow::paintEvent(QPaintEvent* event) {
     Q_UNUSED(event);
     QPainter painter(this);
     painter.fillRect(rect(), Colors::toQColor(Colors::SURFACE));
+    
+    if (m_currentGlowColor.isValid()) {
+        QRadialGradient glow1(rect().width() * 0.8, rect().height() * 0.4, rect().width() * 0.7);
+        QColor gc1 = m_currentGlowColor;
+        gc1.setAlpha(40);
+        glow1.setColorAt(0, gc1);
+        glow1.setColorAt(1, QColor(0, 0, 0, 0));
+        painter.fillRect(rect(), glow1);
+        
+        QRadialGradient glow2(rect().width() * 0.2, rect().height() * 0.8, rect().width() * 0.5);
+        QColor gc2 = Colors::currentTheme.secondary;
+        gc2.setAlpha(20);
+        glow2.setColorAt(0, gc2);
+        glow2.setColorAt(1, QColor(0, 0, 0, 0));
+        painter.fillRect(rect(), glow2);
+    }
 }
 
 void MainWindow::dragEnterEvent(QDragEnterEvent* event) {
@@ -194,9 +247,11 @@ void MainWindow::initUI() {
     // ──── Material Navigation Rail (Sidebar) ────
     QWidget* sidebarWidget = new QWidget();
     sidebarWidget->setFixedWidth(230);
+    sidebarWidget->setAttribute(Qt::WA_StyledBackground);
+    sidebarWidget->setAutoFillBackground(false);
     sidebarWidget->setStyleSheet(QString(
-        "background-color: %1; border-right: 1px solid %2;"
-    ).arg(Colors::SURFACE_CONTAINER).arg(Colors::OUTLINE_VARIANT));
+        "background-color: rgba(8, 10, 18, 150); border-right: 1px solid rgba(255, 255, 255, 20);"
+    ));
     
     QVBoxLayout* sidebarLayout = new QVBoxLayout(sidebarWidget);
     sidebarLayout->setContentsMargins(16, 24, 16, 16);
@@ -317,7 +372,7 @@ void MainWindow::initUI() {
 
     // ──── Content Area ────
     QWidget* contentWidget = new QWidget();
-    contentWidget->setStyleSheet(QString("background: %1;").arg(Colors::SURFACE_DIM));
+    contentWidget->setStyleSheet("background: transparent;");
     QVBoxLayout* mainLayout = new QVBoxLayout(contentWidget);
     mainLayout->setContentsMargins(20, 20, 20, 20);
     mainLayout->setSpacing(16);
@@ -325,8 +380,8 @@ void MainWindow::initUI() {
     // ── Search bar container (Material surface card) ──
     QWidget* searchContainer = new QWidget();
     searchContainer->setStyleSheet(QString(
-        "background: %1; border-radius: 16px; border: 1px solid %2;"
-    ).arg(Colors::SURFACE_CONTAINER).arg(Colors::OUTLINE_VARIANT));
+        "background: rgba(255, 255, 255, 12); border-radius: 16px; border: 1px solid rgba(255, 255, 255, 25);"
+    ));
     searchContainer->setFixedHeight(64);
     QHBoxLayout* searchLayout = new QHBoxLayout(searchContainer);
     searchLayout->setContentsMargins(8, 8, 8, 8);
@@ -842,7 +897,7 @@ void MainWindow::onSearchFinished(QNetworkReply* reply) {
                 card->setThumbnail(m_thumbnailCache[id]);
             } else if (!m_activeThumbnailDownloads.contains(id)) {
                 m_activeThumbnailDownloads.insert(id);
-                QString thumbUrl = QString("https://cdn.akamai.steamstatic.com/steam/apps/%1/header.jpg").arg(id);
+                QString thumbUrl = QString("https://cdn.akamai.steamstatic.com/steam/apps/%1/library_600x900_2x.jpg").arg(id);
                 QNetworkReply* tr = m_networkManager->get(QNetworkRequest{QUrl(thumbUrl)});
                 tr->setProperty("appid", id);
                 connect(tr, &QNetworkReply::finished, this, [this, tr]() {
@@ -931,6 +986,8 @@ void MainWindow::onCardClicked(GameCard* card) {
         m_selectedGame.clear();
         m_btnAddToLibrary->setEnabled(false);
         m_statusLabel->setText("Ready");
+        m_targetGlowColor = Colors::toQColor(Colors::PRIMARY);
+        m_glowTimer->start(16);
         return;
     }
     
@@ -955,6 +1012,9 @@ void MainWindow::onCardClicked(GameCard* card) {
         m_btnRemove->setDescription(QString("Remove %1 from Library").arg(data["name"]));
     }
     m_statusLabel->setText(QString("Selected: %1").arg(data["name"]));
+    
+    m_targetGlowColor = card->getDominantColor().isValid() ? card->getDominantColor() : Colors::toQColor(Colors::PRIMARY);
+    m_glowTimer->start(16);
 }
 
 // ---- Patch / Generate / Restart / Fix / Remove ----
@@ -1244,7 +1304,7 @@ void MainWindow::loadVisibleThumbnails() {
         if (m_activeThumbnailDownloads.contains(appId)) continue;
         
         m_activeThumbnailDownloads.insert(appId);
-        QString thumbUrl = QString("https://cdn.akamai.steamstatic.com/steam/apps/%1/header.jpg").arg(appId);
+        QString thumbUrl = QString("https://cdn.akamai.steamstatic.com/steam/apps/%1/library_600x900_2x.jpg").arg(appId);
         QNetworkReply* tr = m_networkManager->get(QNetworkRequest{QUrl(thumbUrl)});
         tr->setProperty("appid", appId);
         connect(tr, &QNetworkReply::finished, this, [this, tr]() { onThumbnailDownloaded(tr); });
