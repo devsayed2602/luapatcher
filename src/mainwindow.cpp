@@ -10,7 +10,6 @@
 #include "utils/colors.h"
 #include "utils/paths.h"
 #include "config.h"
-#include "onboardingdialog.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -109,19 +108,9 @@ MainWindow::MainWindow(QWidget* parent)
     
     initUI();
     
-    // Check for saved username, show onboarding if needed
+    // Retrieve username from settings (already checked in main.cpp)
     QSettings settings("LuaPatcher", "SteamLuaPatcher");
-    m_username = settings.value("username", "").toString();
-    if (m_username.isEmpty()) {
-        QTimer::singleShot(100, this, [this]() {
-            OnboardingDialog dialog(this);
-            if (dialog.exec() == QDialog::Accepted) {
-                m_username = dialog.username();
-                QSettings s("LuaPatcher", "SteamLuaPatcher");
-                s.setValue("username", m_username);
-            }
-        });
-    }
+    m_username = settings.value("username", "User").toString();
     
     m_debounceTimer = new QTimer(this);
     m_debounceTimer->setSingleShot(true);

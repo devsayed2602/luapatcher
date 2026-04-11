@@ -1,7 +1,9 @@
 #include "mainwindow.h"
 #include "utils/colors.h"
+#include "onboardingdialog.h"
 #include <QApplication>
 #include <QFont>
+#include <QSettings>
 
 QString getStyleSheet() {
     return QString(R"(
@@ -141,8 +143,21 @@ int main(int argc, char *argv[]) {
     font.setStyleStrategy(QFont::PreferAntialias);
     app.setFont(font);
     
+    // Check for saved username, show onboarding if needed BEFORE main window
+    QSettings settings("LuaPatcher", "SteamLuaPatcher");
+    QString username = settings.value("username", "").toString();
+    if (username.isEmpty()) {
+        OnboardingDialog dialog;
+        if (dialog.exec() == QDialog::Accepted) {
+            username = dialog.username();
+            settings.setValue("username", username);
+        } else {
+            return 0; // User closed onboarding, exit app
+        }
+    }
+    
     MainWindow window;
-    window.show();
+    window.showMaximized();
     
     return app.exec();
 }
