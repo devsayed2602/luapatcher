@@ -10,6 +10,7 @@
 #include "utils/colors.h"
 #include "utils/paths.h"
 #include "config.h"
+#include <QDesktopServices>
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -293,6 +294,19 @@ void MainWindow::initUI() {
     m_tabLibrary->setFixedHeight(44);
     connect(m_tabLibrary, &QPushButton::clicked, this, [this](){ switchMode(AppMode::Library); });
     sidebarLayout->addWidget(m_tabLibrary);
+    
+    sidebarLayout->addSpacing(8);
+    
+    m_tabSettings = new GlassButton(MaterialIcons::Settings, " Settings", "", Colors::OUTLINE);
+    m_tabSettings->setFixedHeight(44);
+    sidebarLayout->addWidget(m_tabSettings);
+    
+    m_tabDiscord = new GlassButton(MaterialIcons::Discord, " Discord", "", Colors::ACCENT_BLUE);
+    m_tabDiscord->setFixedHeight(44);
+    connect(m_tabDiscord, &QPushButton::clicked, this, [this](){
+        QDesktopServices::openUrl(QUrl("https://discord.gg/your-server"));
+    });
+    sidebarLayout->addWidget(m_tabDiscord);
     
     sidebarLayout->addSpacing(8);
     
