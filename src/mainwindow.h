@@ -35,7 +35,9 @@ class MainWindow : public QMainWindow {
 public:
     enum class AppMode {
         LuaPatcher,
-        Library
+        Library,
+        Settings,
+        Discord
     };
 
     explicit MainWindow(QWidget* parent = nullptr);
@@ -89,16 +91,29 @@ private:
     LoadingSpinner* m_spinner;
     QProgressBar* m_progress;
     
-    // Grid components
-    QScrollArea* m_scrollArea;
+    // Main Content
+    QWidget* m_mainScrollContainer;
+    QVBoxLayout* m_mainScrollLayout;
+    QScrollArea* m_mainScrollArea;
+    
+    QWidget* m_heroBanner;
+    
+    // Rows
+    QHBoxLayout* m_trendingLayout;
     QWidget* m_gridContainer;
     QGridLayout* m_gridLayout;
     QList<GameCard*> m_gameCards;
     GameCard* m_selectedCard = nullptr;
     
+    // Top Bar
+    QWidget* m_topProfileWidget;
+    QLabel* m_topUsernameLabel;
+    
     // Header & Tabs
     GlassButton* m_tabLua;
     GlassButton* m_tabLibrary;
+    GlassButton* m_tabSettings;
+    GlassButton* m_tabDiscord;
     AppMode m_currentMode;
 
     GlassButton* m_btnAddToLibrary;

@@ -75,7 +75,7 @@ void GlassButton::setEnabled(bool enabled) {
     update();
 }
 
-void GlassButton::setColor(const QString& color) {
+void GlassButton::setAccentColor(const QString& color) {
     m_accentColor = color;
     update();
 }

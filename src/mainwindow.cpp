@@ -364,45 +364,67 @@ void MainWindow::initUI() {
     contentWidget->setStyleSheet("background: transparent;");
     QVBoxLayout* mainLayout = new QVBoxLayout(contentWidget);
     mainLayout->setContentsMargins(20, 20, 20, 20);
-    mainLayout->setSpacing(16);
+    mainLayout->setSpacing(20);
     
-    // ── Search bar container (Material surface card) ──
+    // ── Top Bar (Search + Profile) ──
+    QWidget* topBarWidget = new QWidget();
+    QHBoxLayout* topBarLayout = new QHBoxLayout(topBarWidget);
+    topBarLayout->setContentsMargins(0, 0, 0, 0);
+    topBarLayout->setSpacing(16);
+    
+    // Search Container
     QWidget* searchContainer = new QWidget();
     searchContainer->setStyleSheet(QString(
         "background: rgba(255, 255, 255, 12); border-radius: 16px; border: 1px solid rgba(255, 255, 255, 25);"
     ));
-    searchContainer->setFixedHeight(64);
+    searchContainer->setFixedHeight(56);
     QHBoxLayout* searchLayout = new QHBoxLayout(searchContainer);
-    searchLayout->setContentsMargins(8, 8, 8, 8);
-    searchLayout->setSpacing(8);
+    searchLayout->setContentsMargins(12, 4, 12, 4);
     
-    // Search icon
     MaterialIconWidget* searchIconWidget = new MaterialIconWidget(
-        MaterialIcons::Search, Colors::toQColor(Colors::ON_SURFACE_VARIANT), 40);
+        MaterialIcons::Search, Colors::toQColor(Colors::ON_SURFACE_VARIANT), 32);
     searchLayout->addWidget(searchIconWidget);
     
     m_searchInput = new QLineEdit();
-    m_searchInput->setPlaceholderText("Search games...");
-    m_searchInput->setMinimumHeight(40);
+    m_searchInput->setPlaceholderText("Search thousands of games...");
     m_searchInput->setStyleSheet(QString(
-        "QLineEdit { background: transparent; border: none; border-radius: 0px;"
-        " font-size: 15px; color: %1; padding: 0px 4px; }"
+        "QLineEdit { background: transparent; border: none; font-size: 15px; color: %1; padding: 0 8px; }"
         "QLineEdit:focus { border: none; background: transparent; }"
     ).arg(Colors::ON_SURFACE));
     connect(m_searchInput, &QLineEdit::textChanged, this, &MainWindow::onSearchChanged);
     searchLayout->addWidget(m_searchInput);
     
-    // Refresh button with Material icon
     MaterialIconButton* refreshBtn = new MaterialIconButton(
-        MaterialIcons::Refresh, Colors::toQColor(Colors::ON_SURFACE_VARIANT), 40);
+        MaterialIcons::Refresh, Colors::toQColor(Colors::ON_SURFACE_VARIANT), 36);
     connect(refreshBtn, &QPushButton::clicked, this, [this]() {
         if (m_searchInput->text().trimmed().isEmpty()) startSync(); else doSearch();
     });
     searchLayout->addWidget(refreshBtn);
+    topBarLayout->addWidget(searchContainer, 1);
     
-    mainLayout->addWidget(searchContainer);
+    // Profile Widget
+    m_topProfileWidget = new QWidget();
+    m_topProfileWidget->setFixedHeight(56);
+    m_topProfileWidget->setMinimumWidth(160);
+    m_topProfileWidget->setStyleSheet(QString(
+        "background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 %1, stop:1 %2);"
+        "border-radius: 16px; border: 1px solid rgba(255, 255, 255, 30);"
+    ).arg("rgba(208, 188, 255, 30)").arg("rgba(208, 188, 255, 5)"));
+    QHBoxLayout* profileLayout = new QHBoxLayout(m_topProfileWidget);
+    profileLayout->setContentsMargins(16, 0, 16, 0);
     
-    // Stacked widget: page 0 = loading, page 1 = grid
+    QLabel* avatarIcon = new QLabel("👤");
+    avatarIcon->setStyleSheet("font-size: 20px; background: transparent; border: none;");
+    profileLayout->addWidget(avatarIcon);
+    
+    m_topUsernameLabel = new QLabel(m_username.isEmpty() ? "Guest" : m_username);
+    m_topUsernameLabel->setStyleSheet("font-size: 15px; font-weight: bold; color: white; background: transparent; border: none;");
+    profileLayout->addWidget(m_topUsernameLabel, 1);
+    topBarLayout->addWidget(m_topProfileWidget);
+    
+    mainLayout->addWidget(topBarWidget);
+    
+    // Stacked widget: page 0 = loading, page 1 = main content
     m_stack = new QStackedWidget();
     
     QWidget* pageLoading = new QWidget();
@@ -412,30 +434,80 @@ void MainWindow::initUI() {
     layLoading->addWidget(m_spinner);
     m_stack->addWidget(pageLoading); // index 0
     
-    // Grid page
-    m_scrollArea = new QScrollArea();
-    m_scrollArea->setWidgetResizable(true);
-    m_scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    m_scrollArea->setFrameShape(QFrame::NoFrame);
-    m_scrollArea->setStyleSheet(QString(
+    // ── Main Content Page (Scrollable) ──
+    m_mainScrollArea = new QScrollArea();
+    m_mainScrollArea->setWidgetResizable(true);
+    m_mainScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_mainScrollArea->setFrameShape(QFrame::NoFrame);
+    m_mainScrollArea->setStyleSheet(QString(
         "QScrollArea { background: transparent; border: none; }"
         "QScrollBar:vertical { background: %1; width: 8px; border-radius: 4px; }"
         "QScrollBar::handle:vertical { background: %2; border-radius: 4px; min-height: 30px; }"
         "QScrollBar::handle:vertical:hover { background: %3; }"
-        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
-    ).arg(Colors::SURFACE).arg(Colors::OUTLINE_VARIANT).arg(Colors::OUTLINE));
+    ).arg("rgba(0,0,0,0)").arg(Colors::OUTLINE_VARIANT).arg(Colors::OUTLINE));
+    
+    m_mainScrollContainer = new QWidget();
+    m_mainScrollContainer->setStyleSheet("background: transparent;");
+    m_mainScrollLayout = new QVBoxLayout(m_mainScrollContainer);
+    m_mainScrollLayout->setContentsMargins(0, 0, 12, 20);
+    m_mainScrollLayout->setSpacing(24);
+    
+    // 1. Hero Banner
+    m_heroBanner = new QWidget();
+    m_heroBanner->setFixedHeight(220);
+    m_heroBanner->setStyleSheet(QString(
+        "QWidget { background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 %1, stop:1 rgba(20,20,30,255));"
+        "border-radius: 24px; border: 1px solid rgba(255,255,255,40); }"
+    ).arg("rgba(90, 50, 150, 200)"));
+    QVBoxLayout* heroLayout = new QVBoxLayout(m_heroBanner);
+    heroLayout->setContentsMargins(40, 40, 40, 40);
+    
+    QLabel* heroTitle = new QLabel("Discover & Patch");
+    heroTitle->setStyleSheet("font-size: 34px; font-weight: 800; color: white; background: transparent; border: none;");
+    heroLayout->addWidget(heroTitle);
+    
+    QLabel* heroSub = new QLabel("Seamlessly integrated tools to supercharge your Steam experience.");
+    heroSub->setStyleSheet("font-size: 16px; color: rgba(255,255,255,180); background: transparent; border: none;");
+    heroLayout->addWidget(heroSub);
+    heroLayout->addStretch();
+    m_mainScrollLayout->addWidget(m_heroBanner);
+    
+    // 2. Trending Row (Horizontal)
+    QLabel* trendingTitle = new QLabel("Trending Games");
+    trendingTitle->setStyleSheet("font-size: 20px; font-weight: bold; padding-left: 4px; color: white;");
+    m_mainScrollLayout->addWidget(trendingTitle);
+    
+    QScrollArea* trendScroll = new QScrollArea();
+    trendScroll->setWidgetResizable(true);
+    trendScroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    trendScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    trendScroll->setFixedHeight(260); // 240 card height + 20 margin
+    trendScroll->setStyleSheet("background: transparent; border: none;");
+    
+    QWidget* trendContainer = new QWidget();
+    m_trendingLayout = new QHBoxLayout(trendContainer);
+    m_trendingLayout->setContentsMargins(4, 4, 4, 4);
+    m_trendingLayout->setSpacing(16);
+    m_trendingLayout->setAlignment(Qt::AlignLeft);
+    trendScroll->setWidget(trendContainer);
+    m_mainScrollLayout->addWidget(trendScroll);
+    
+    // 3. All Games Grid
+    QLabel* allTitle = new QLabel("All Available Games");
+    allTitle->setStyleSheet("font-size: 20px; font-weight: bold; padding-left: 4px; color: white; margin-top: 10px;");
+    m_mainScrollLayout->addWidget(allTitle);
     
     m_gridContainer = new QWidget();
-    m_gridContainer->setStyleSheet("background: transparent;");
     m_gridLayout = new QGridLayout(m_gridContainer);
     m_gridLayout->setContentsMargins(4, 4, 4, 4);
-    m_gridLayout->setSpacing(14);
+    m_gridLayout->setSpacing(20);
+    m_mainScrollLayout->addWidget(m_gridContainer);
     
-    m_scrollArea->setWidget(m_gridContainer);
-    connect(m_scrollArea->verticalScrollBar(), &QScrollBar::valueChanged,
+    m_mainScrollArea->setWidget(m_mainScrollContainer);
+    connect(m_mainScrollArea->verticalScrollBar(), &QScrollBar::valueChanged,
             this, &MainWindow::loadVisibleThumbnails);
     
-    m_stack->addWidget(m_scrollArea); // index 1
+    m_stack->addWidget(m_mainScrollArea); // index 1
     mainLayout->addWidget(m_stack);
     
     // Progress bar - Material linear progress
@@ -454,17 +526,30 @@ void MainWindow::initUI() {
     updateModeUI();
 }
 
-// ---- Helper: clear all game cards from grid ----
 void MainWindow::clearGameCards() {
     m_selectedCard = nullptr;
-    for (GameCard* card : m_gameCards) {
-        m_gridLayout->removeWidget(card);
-        card->deleteLater();
+    
+    // Clear trending layout
+    while (QLayoutItem* item = m_trendingLayout->takeAt(0)) {
+        if (QWidget* widget = item->widget()) {
+            widget->hide();
+            widget->deleteLater();
+        }
+        delete item;
     }
+    
+    // Clear grid layout
+    while (QLayoutItem* item = m_gridLayout->takeAt(0)) {
+        if (QWidget* widget = item->widget()) {
+            widget->hide();
+            widget->deleteLater();
+        }
+        delete item;
+    }
+    
     m_gameCards.clear();
 }
 
-// ---- Display random games from supported list ----
 void MainWindow::displayRandomGames() {
     clearGameCards();
     m_selectedGame.clear();
@@ -474,6 +559,24 @@ void MainWindow::displayRandomGames() {
 
     if (m_supportedGames.isEmpty()) return;
 
+    // Show Home-specific components
+    m_heroBanner->show();
+    m_mainScrollArea->show();
+    
+    // The main scroll layout has: Hero(0), TrendingTitle(1), TrendingRow(2), GridTitle(3), Grid(4)
+    // Actually looking at my initUI:
+    // 0: Hero
+    // 1: Trending Title
+    // 2: Trending Scroll Area
+    // 3: Grid Title
+    // 4: Grid Wrapper
+    
+    if (m_mainScrollLayout->count() > 4) {
+        m_mainScrollLayout->itemAt(1)->widget()->show(); // Trending Title
+        m_mainScrollLayout->itemAt(2)->widget()->show(); // Trending Row
+        static_cast<QLabel*>(m_mainScrollLayout->itemAt(3)->widget())->setText("All Available Games");
+    }
+
     QList<GameInfo> shuffled = m_supportedGames;
     auto *rng = QRandomGenerator::global();
     for (int i = shuffled.size() - 1; i > 0; --i) {
@@ -481,43 +584,60 @@ void MainWindow::displayRandomGames() {
         shuffled.swapItemsAt(i, j);
     }
 
-    int count = qMin(12, shuffled.size());
-    for (int i = 0; i < count; ++i) {
+    // 1. Trending Row (6 games)
+    int trendCount = qMin(8, shuffled.size()); // Let's show 8 in trending
+    for (int i = 0; i < trendCount; ++i) {
         const GameInfo& game = shuffled[i];
-
-        // Apply name cache for games with unknown names
-        QString displayName = game.name;
-        if (displayName.isEmpty() || displayName.startsWith("Unknown Game") || displayName == game.id) {
-            if (m_nameCache.contains(game.id)) {
-                displayName = m_nameCache[game.id];
-            } else {
-                displayName = "Loading...";
-                m_pendingNameFetchIds.append(game.id);
-            }
-        }
-
+        
         QMap<QString, QString> cd;
-        cd["name"] = displayName;
+        cd["name"] = game.name;
         cd["appid"] = game.id;
         cd["supported"] = "true";
         cd["hasFix"] = game.hasFix ? "true" : "false";
 
-        GameCard* card = new GameCard(m_gridContainer);
+        if (cd["name"].isEmpty() || cd["name"] == game.id) {
+            cd["name"] = m_nameCache.contains(game.id) ? m_nameCache[game.id] : "Loading...";
+        }
+        if (cd["name"] == "Loading...") m_pendingNameFetchIds.append(game.id);
+
+        GameCard* card = new GameCard(m_trendingLayout->parentWidget());
         card->setGameData(cd);
         connect(card, &GameCard::clicked, this, &MainWindow::onCardClicked);
-
-        m_gridLayout->addWidget(card, i / 3, i % 3);
+        m_trendingLayout->addWidget(card);
         m_gameCards.append(card);
 
-        if (m_thumbnailCache.contains(game.id)) {
-            card->setThumbnail(m_thumbnailCache[game.id]);
+        if (m_thumbnailCache.contains(game.id)) card->setThumbnail(m_thumbnailCache[game.id]);
+    }
+
+    // 2. All Games Grid (The rest)
+    int gridCount = qMin(30, (int)shuffled.size() - trendCount);
+    for (int i = 0; i < gridCount; ++i) {
+        const GameInfo& game = shuffled[trendCount + i];
+        
+        QMap<QString, QString> cd;
+        cd["name"] = game.name;
+        cd["appid"] = game.id;
+        cd["supported"] = "true";
+        cd["hasFix"] = game.hasFix ? "true" : "false";
+
+        if (cd["name"].isEmpty() || cd["name"] == game.id) {
+            cd["name"] = m_nameCache.contains(game.id) ? m_nameCache[game.id] : "Loading...";
         }
+        if (cd["name"] == "Loading...") m_pendingNameFetchIds.append(game.id);
+
+        GameCard* card = new GameCard(m_gridLayout->parentWidget());
+        card->setGameData(cd);
+        connect(card, &GameCard::clicked, this, &MainWindow::onCardClicked);
+        m_gridLayout->addWidget(card, i / 6, i % 6); // 6 columns on wide screens
+        m_gameCards.append(card);
+
+        if (m_thumbnailCache.contains(game.id)) card->setThumbnail(m_thumbnailCache[game.id]);
     }
 
     QTimer::singleShot(50, this, &MainWindow::loadVisibleThumbnails);
     if (!m_pendingNameFetchIds.isEmpty()) startBatchNameFetch();
 
-    m_statusLabel->setText(QString("Showing %1 random games").arg(m_gameCards.count()));
+    m_statusLabel->setText(QString("Home: %1 games discovered").arg(m_gameCards.count()));
     m_stack->setCurrentIndex(1);
     m_spinner->stop();
 }
@@ -527,8 +647,15 @@ void MainWindow::displayLibrary() {
     clearGameCards();
     m_selectedGame.clear();
     m_btnAddToLibrary->setEnabled(false);
-    cancelNameFetches();
-    m_pendingNameFetchIds.clear();
+    m_btnRemove->setEnabled(false);
+    
+    // Hide Home-specific components
+    m_heroBanner->hide();
+    if (m_mainScrollLayout->count() > 4) {
+        m_mainScrollLayout->itemAt(1)->widget()->hide(); // Trending Title label
+        m_mainScrollLayout->itemAt(2)->widget()->hide(); // Trending Row
+        static_cast<QLabel*>(m_mainScrollLayout->itemAt(3)->widget())->setText("Installed Patches"); 
+    }
 
     QStringList pluginDirs = Config::getAllSteamPluginDirs();
     QSet<QString> installedAppIds;
@@ -552,42 +679,28 @@ void MainWindow::displayLibrary() {
     for (const QString& appId : installedAppIds) {
         if (count >= 100) break;
 
-        QString name = "Unknown Game";
+        QString name = m_nameCache.contains(appId) ? m_nameCache[appId] : "Loading...";
         bool hasFix = false;
-        
         for (const auto& g : m_supportedGames) {
-            if (g.id == appId) {
-                name = g.name;
-                hasFix = g.hasFix;
-                break;
-            }
+            if (g.id == appId) { hasFix = g.hasFix; break; }
         }
 
-        if (name == "Unknown Game") m_pendingNameFetchIds.append(appId);
+        if (name == "Loading...") m_pendingNameFetchIds.append(appId);
 
-        QMap<QString, QString> cd;
-        cd["name"] = name;
-        cd["appid"] = appId;
-        cd["supported"] = "true";
-        cd["hasFix"] = hasFix ? "true" : "false";
-
-        GameCard* card = new GameCard(m_gridContainer);
-        card->setGameData(cd);
+        GameCard* card = new GameCard(m_gridLayout->parentWidget());
+        card->setGameData({{"name", name}, {"appid", appId}, {"supported", "local"}, {"hasFix", hasFix ? "true" : "false"}});
         connect(card, &GameCard::clicked, this, &MainWindow::onCardClicked);
-
-        m_gridLayout->addWidget(card, count / 3, count % 3);
+        m_gridLayout->addWidget(card, count / 6, count % 6);
         m_gameCards.append(card);
 
-        if (m_thumbnailCache.contains(appId)) {
-            card->setThumbnail(m_thumbnailCache[appId]);
-        }
+        if (m_thumbnailCache.contains(appId)) card->setThumbnail(m_thumbnailCache[appId]);
         count++;
     }
 
     QTimer::singleShot(50, this, &MainWindow::loadVisibleThumbnails);
     if (!m_pendingNameFetchIds.isEmpty()) startBatchNameFetch();
-
-    m_statusLabel->setText(QString("Found %1 installed patches").arg(m_gameCards.count()));
+    
+    m_statusLabel->setText(QString("Library: %1 patches found").arg(m_gameCards.count()));
     m_stack->setCurrentIndex(1);
     m_spinner->stop();
 }
@@ -602,13 +715,13 @@ void MainWindow::startSync() {
         m_hasCachedData = true;
         m_statusLabel->setText("Syncing in background...");
     } else {
-        // No cache available - show skeleton placeholders
+        // No cache available - show skeleton placeholders in grid
         m_hasCachedData = false;
         clearGameCards();
         for (int i = 0; i < 12; ++i) {
-            GameCard* card = new GameCard(m_gridContainer);
+            GameCard* card = new GameCard(m_gridLayout->parentWidget());
             card->setSkeleton(true);
-            m_gridLayout->addWidget(card, i / 3, i % 3);
+            m_gridLayout->addWidget(card, i / 6, i % 6);
             m_gameCards.append(card);
         }
         m_stack->setCurrentIndex(1);
@@ -711,16 +824,30 @@ void MainWindow::onSyncError(QString error) {
 
 // ---- Search ----
 void MainWindow::onSearchChanged(const QString& text) {
-    m_debounceTimer->stop();
-    if (!text.trimmed().isEmpty()) {
-        m_debounceTimer->start(400);
-    } else {
+    QString trimmed = text.trimmed();
+    
+    // UI feedback for home vs search
+    if (trimmed.isEmpty()) {
+        m_heroBanner->show();
+        if (m_mainScrollLayout->count() > 4) {
+            m_mainScrollLayout->itemAt(1)->widget()->show();
+            m_mainScrollLayout->itemAt(2)->widget()->show();
+        }
+        
         clearGameCards();
         if (m_currentMode == AppMode::LuaPatcher) {
             displayRandomGames();
         } else if (m_currentMode == AppMode::Library) {
             displayLibrary();
         }
+    } else {
+        m_heroBanner->hide();
+        if (m_mainScrollLayout->count() > 4) {
+            m_mainScrollLayout->itemAt(1)->widget()->hide();
+            m_mainScrollLayout->itemAt(2)->widget()->hide();
+        }
+        m_debounceTimer->stop();
+        m_debounceTimer->start(400);
     }
 }
 
@@ -872,12 +999,12 @@ void MainWindow::onSearchFinished(QNetworkReply* reply) {
             cd["supported"] = supported ? "true" : "false";
             cd["hasFix"] = hasFix ? "true" : "false";
             
-            GameCard* card = new GameCard(m_gridContainer);
+            GameCard* card = new GameCard(m_gridLayout->parentWidget());
             card->setGameData(cd);
             connect(card, &GameCard::clicked, this, &MainWindow::onCardClicked);
             
             int idx = m_gameCards.count();
-            m_gridLayout->addWidget(card, idx / 3, idx % 3);
+            m_gridLayout->addWidget(card, idx / 6, idx % 6);
             m_gameCards.append(card);
             cardMap.insert(id, card);
             changed = true;
@@ -909,15 +1036,22 @@ void MainWindow::displayResults(const QJsonArray& items) {
     cancelNameFetches();
     m_pendingNameFetchIds.clear();
 
-    if (items.isEmpty()) return;
+    if (items.isEmpty()) {
+        m_statusLabel->setText("No results found.");
+        return;
+    }
 
-    QJsonArray safeItems = items;
-    if (safeItems.size() > 120) {
-        while (safeItems.size() > 120) safeItems.removeAt(safeItems.size() - 1);
-    } 
+    // Hide Home components
+    m_heroBanner->hide();
+    if (m_mainScrollLayout->count() > 4) {
+        m_mainScrollLayout->itemAt(1)->widget()->hide();
+        m_mainScrollLayout->itemAt(2)->widget()->hide();
+        static_cast<QLabel*>(m_mainScrollLayout->itemAt(3)->widget())->setText(QString("Results (%1)").arg(items.size()));
+    }
 
     int idx = 0;
-    for (const QJsonValue& val : safeItems) {
+    for (const QJsonValue& val : items) {
+        if (idx >= 120) break;
         QJsonObject item = val.toObject();
         QString name = item["name"].toString("Unknown");
         QString appid = item.contains("id")
@@ -926,43 +1060,23 @@ void MainWindow::displayResults(const QJsonArray& items) {
         
         bool supported = false;
         bool hasFix = false;
-        if (item.contains("supported_local")) {
-            supported = true;
-            for (const auto& g : m_supportedGames) {
-                if (g.id == appid) { hasFix = g.hasFix; break; }
-            }
-        } else {
-            for (const auto& g : m_supportedGames) {
-                if (g.id == appid) { supported = true; hasFix = g.hasFix; break; }
-            }
+        for (const auto& g : m_supportedGames) {
+            if (g.id == appid) { supported = true; hasFix = g.hasFix; break; }
         }
         
-        QMap<QString, QString> cd;
-        cd["name"] = name;
-        cd["appid"] = appid;
-        cd["supported"] = supported ? "true" : "false";
-        cd["hasFix"] = hasFix ? "true" : "false";
-        
-        GameCard* card = new GameCard(m_gridContainer);
-        card->setGameData(cd);
+        GameCard* card = new GameCard(m_gridLayout->parentWidget());
+        card->setGameData({{"name", name}, {"appid", appid}, {"supported", supported ? "true" : "false"}, {"hasFix", hasFix ? "true" : "false"}});
         connect(card, &GameCard::clicked, this, &MainWindow::onCardClicked);
-        
-        m_gridLayout->addWidget(card, idx / 3, idx % 3);
+        m_gridLayout->addWidget(card, idx / 6, idx % 6);
         m_gameCards.append(card);
         
-        if (m_thumbnailCache.contains(appid)) {
-            card->setThumbnail(m_thumbnailCache[appid]);
-        }
-        
-        if (name.startsWith("Unknown Game") || name == "Unknown") {
-            m_pendingNameFetchIds.append(appid);
-        }
+        if (m_thumbnailCache.contains(appid)) card->setThumbnail(m_thumbnailCache[appid]);
+        if (name.startsWith("Unknown Game") || name == "Unknown") m_pendingNameFetchIds.append(appid);
         idx++;
     }
     
-    m_statusLabel->setText(QString("Found %1 results").arg(items.size()));
+    m_statusLabel->setText(QString("Search: Found %1 matches").arg(items.size()));
     QTimer::singleShot(50, this, &MainWindow::loadVisibleThumbnails);
-    
     if (!m_pendingNameFetchIds.isEmpty()) startBatchNameFetch();
 }
 
@@ -991,10 +1105,10 @@ void MainWindow::onCardClicked(GameCard* card) {
         m_btnAddToLibrary->setEnabled(true);
         if (isSupported) {
             m_btnAddToLibrary->setDescription(QString("Install patch for %1").arg(data["name"]));
-            m_btnAddToLibrary->setColor(Colors::ACCENT_GREEN);
+            m_btnAddToLibrary->setAccentColor(Colors::ACCENT_GREEN);
         } else {
             m_btnAddToLibrary->setDescription(QString("Generate patch for %1").arg(data["name"]));
-            m_btnAddToLibrary->setColor(Colors::PRIMARY);
+            m_btnAddToLibrary->setAccentColor(Colors::PRIMARY);
         }
     } else if (m_currentMode == AppMode::Library) {
         m_btnRemove->setEnabled(true);
@@ -1132,7 +1246,7 @@ void MainWindow::runGenerateLogic() {
             }
         }
         m_btnAddToLibrary->setDescription(QString("Re-patch %1").arg(m_selectedGame["name"]));
-        m_btnAddToLibrary->setColor(Colors::ACCENT_GREEN);
+        m_btnAddToLibrary->setAccentColor(Colors::ACCENT_GREEN);
     });
     connect(m_genWorker, &GeneratorWorker::progress, [this](qint64 dl, qint64 total) {
         if (total > 0) m_progress->setValue(static_cast<int>(dl * 100 / total));
@@ -1164,6 +1278,26 @@ void MainWindow::switchMode(AppMode mode) {
     m_currentMode = mode;
     updateModeUI();
     
+    onCardClicked(nullptr);
+    clearGameCards();
+    
+    if (m_currentMode == AppMode::LuaPatcher) {
+        if (m_searchInput->text().trimmed().isEmpty()) {
+            displayRandomGames();
+        } else {
+            doSearch();
+        }
+    } else if (m_currentMode == AppMode::Library) {
+        displayLibrary();
+    }
+}
+
+void MainWindow::updateModeUI() {
+    m_tabLua->setAccentColor(m_currentMode == AppMode::LuaPatcher ? Colors::PRIMARY : "transparent");
+    m_tabLibrary->setAccentColor(m_currentMode == AppMode::Library ? Colors::ACCENT_GREEN : "transparent");
+    m_tabSettings->setAccentColor(m_currentMode == AppMode::Settings ? Colors::PRIMARY : "transparent");
+    m_tabDiscord->setAccentColor("transparent");
+
     m_btnAddToLibrary->hide();
     m_btnRemove->hide();
     
@@ -1173,22 +1307,6 @@ void MainWindow::switchMode(AppMode mode) {
         m_btnRemove->show();
     }
     
-    onCardClicked(nullptr);
-    clearGameCards();
-    if (m_currentMode == AppMode::Library) {
-        displayLibrary();
-    } else {
-        if (m_searchInput->text().trimmed().isEmpty()) {
-            displayRandomGames();
-        } else {
-            doSearch();
-        }
-    }
-}
-
-void MainWindow::updateModeUI() {
-    m_tabLua->setActive(m_currentMode == AppMode::LuaPatcher);
-    m_tabLibrary->setActive(m_currentMode == AppMode::Library);
     m_stack->setCurrentIndex(1);
 }
 
@@ -1279,13 +1397,16 @@ void MainWindow::onGameNameFetched(QNetworkReply* reply) {
 
 // ---- Thumbnail lazy loading ----
 void MainWindow::loadVisibleThumbnails() {
-    if (!m_scrollArea || !m_networkManager) return;
-    QRect visibleRect = m_scrollArea->viewport()->rect();
+    if (!m_mainScrollArea || !m_networkManager) return;
+    QRect visibleRect = m_mainScrollArea->viewport()->rect();
     
     for (GameCard* card : m_gameCards) {
-        QPoint pos = m_gridContainer->mapTo(m_scrollArea->viewport(), card->geometry().topLeft());
+        // Map card position correctly to scroll viewport
+        QPoint pos = card->mapTo(m_mainScrollArea->viewport(), QPoint(0,0));
         QRect cardInView(pos, card->size());
-        if (!visibleRect.intersects(cardInView)) continue;
+        
+        // Add some buffer for smoother loading
+        if (!visibleRect.adjusted(-200, -200, 200, 200).intersects(cardInView)) continue;
         
         QString appId = card->appId();
         if (appId.isEmpty() || card->hasThumbnail()) continue;
@@ -1294,7 +1415,10 @@ void MainWindow::loadVisibleThumbnails() {
         
         m_activeThumbnailDownloads.insert(appId);
         QString thumbUrl = QString("https://cdn.akamai.steamstatic.com/steam/apps/%1/library_600x900_2x.jpg").arg(appId);
-        QNetworkReply* tr = m_networkManager->get(QNetworkRequest{QUrl(thumbUrl)});
+        QNetworkRequest req{QUrl(thumbUrl)};
+        req.setAttribute(QNetworkRequest::Attribute(QNetworkRequest::User + 1), appId);
+        
+        QNetworkReply* tr = m_networkManager->get(req);
         tr->setProperty("appid", appId);
         connect(tr, &QNetworkReply::finished, this, [this, tr]() { onThumbnailDownloaded(tr); });
     }
