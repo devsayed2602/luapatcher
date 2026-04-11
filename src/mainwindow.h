@@ -76,6 +76,9 @@ private:
     void clearGameCards();
     void displayRandomGames();
     void displayLibrary();
+    void loadNameCache();
+    void saveNameCache();
+    bool loadCachedIndex();
 
     // UI Components
     QLabel* m_statusLabel;
@@ -124,6 +127,9 @@ private:
     QList<QNetworkReply*> m_activeNameFetches;
     bool m_fetchingNames;
     int m_nameFetchSearchId;
+    // Persistent name cache (appId -> gameName)
+    QMap<QString, QString> m_nameCache;
+    bool m_hasCachedData;  // true if we loaded from cache on startup
     // Thumbnail cache
     QMap<QString, QPixmap> m_thumbnailCache;
     QSet<QString> m_activeThumbnailDownloads;

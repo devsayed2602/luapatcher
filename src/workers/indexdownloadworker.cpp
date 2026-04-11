@@ -30,12 +30,7 @@ void IndexDownloadWorker::run() {
         QString indexPath = Paths::getLocalIndexPath();
         QJsonObject indexData;
 
-        // Explicitly remove old cache as requested
-        if (QFile::exists(indexPath)) {
-            QFile::remove(indexPath);
-        }
-
-        // Try to download
+        // Try to download (cache is preserved for instant startup)
         emit progress("Syncing library...");
         
         QNetworkAccessManager manager;

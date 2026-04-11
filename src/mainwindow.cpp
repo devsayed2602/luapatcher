@@ -93,6 +93,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_restartWorker(nullptr)
     , m_fetchingNames(false)
     , m_nameFetchSearchId(0)
+    , m_hasCachedData(false)
 {
     setWindowTitle("Steam Lua Patcher");
     setMinimumSize(900, 600);
@@ -440,15 +441,22 @@ void MainWindow::displayRandomGames() {
     for (int i = 0; i < count; ++i) {
         const GameInfo& game = shuffled[i];
 
+        // Apply name cache for games with unknown names
+        QString displayName = game.name;
+        if (displayName.isEmpty() || displayName.startsWith("Unknown Game") || displayName == game.id) {
+            if (m_nameCache.contains(game.id)) {
+                displayName = m_nameCache[game.id];
+            } else {
+                displayName = "Loading...";
+                m_pendingNameFetchIds.append(game.id);
+            }
+        }
+
         QMap<QString, QString> cd;
-        cd["name"] = (game.name.isEmpty() || game.name == game.id || game.name == "Unknown Game")
-            ? "Loading..." : game.name;
+        cd["name"] = displayName;
         cd["appid"] = game.id;
         cd["supported"] = "true";
         cd["hasFix"] = game.hasFix ? "true" : "false";
-
-        if (game.name.isEmpty() || game.name == game.id || game.name == "Unknown Game")
-            m_pendingNameFetchIds.append(game.id);
 
         GameCard* card = new GameCard(m_gridContainer);
         card->setGameData(cd);
@@ -466,8 +474,6 @@ void MainWindow::displayRandomGames() {
     if (!m_pendingNameFetchIds.isEmpty()) startBatchNameFetch();
 
     m_statusLabel->setText(QString("Showing %1 random games").arg(m_gameCards.count()));
-    m_stack->setCurrentIndex(1);
-    m_spinner->stop();
     m_stack->setCurrentIndex(1);
     m_spinner->stop();
 }
@@ -544,36 +550,110 @@ void MainWindow::displayLibrary() {
 
 // ---- Sync ----
 void MainWindow::startSync() {
-    clearGameCards();
-    
-    for (int i = 0; i < 12; ++i) {
-        GameCard* card = new GameCard(m_gridContainer);
-        card->setSkeleton(true);
-        m_gridLayout->addWidget(card, i / 3, i % 3);
-        m_gameCards.append(card);
+    // Load persistent name cache from disk
+    loadNameCache();
+
+    // Try to load cached index for instant display
+    if (loadCachedIndex()) {
+        m_hasCachedData = true;
+        m_statusLabel->setText("Syncing in background...");
+    } else {
+        // No cache available - show skeleton placeholders
+        m_hasCachedData = false;
+        clearGameCards();
+        for (int i = 0; i < 12; ++i) {
+            GameCard* card = new GameCard(m_gridContainer);
+            card->setSkeleton(true);
+            m_gridLayout->addWidget(card, i / 3, i % 3);
+            m_gameCards.append(card);
+        }
+        m_stack->setCurrentIndex(1);
+        m_spinner->stop();
     }
-    
-    m_stack->setCurrentIndex(1);
-    m_spinner->stop();
+
+    // Always start background sync to get fresh data
     m_syncWorker = new IndexDownloadWorker(this);
     connect(m_syncWorker, &IndexDownloadWorker::finished, this, &MainWindow::onSyncDone);
-    connect(m_syncWorker, &IndexDownloadWorker::progress, m_statusLabel, &QLabel::setText);
+    connect(m_syncWorker, &IndexDownloadWorker::progress, [this](QString msg) {
+        // Only show sync progress if we don't already have cached data displayed
+        if (!m_hasCachedData) m_statusLabel->setText(msg);
+    });
     connect(m_syncWorker, &IndexDownloadWorker::error, this, &MainWindow::onSyncError);
     m_syncWorker->start();
 }
 
-void MainWindow::onSyncDone(QList<GameInfo> games) {
+bool MainWindow::loadCachedIndex() {
+    QString indexPath = Paths::getLocalIndexPath();
+    if (!QFile::exists(indexPath)) return false;
+
+    QFile file(indexPath);
+    if (!file.open(QIODevice::ReadOnly)) return false;
+
+    QByteArray data = file.readAll();
+    file.close();
+
+    QJsonDocument doc = QJsonDocument::fromJson(data);
+    QJsonObject indexData = doc.object();
+    QJsonArray arr = indexData["games"].toArray();
+    if (arr.isEmpty()) return false;
+
+    // Parse games and apply name cache
+    QList<GameInfo> games;
+    games.reserve(arr.size());
+    for (const QJsonValue& val : arr) {
+        QJsonObject obj = val.toObject();
+        GameInfo game;
+        game.id = obj["id"].toString();
+        game.name = obj["name"].toString();
+        // Apply cached name if the index has an unknown name
+        if (game.name.startsWith("Unknown Game") && m_nameCache.contains(game.id)) {
+            game.name = m_nameCache[game.id];
+        }
+        game.hasFix = obj["has_fix"].toBool(false);
+        games.append(game);
+    }
+
     m_supportedGames = games;
-    m_spinner->stop();
-    m_stack->setCurrentIndex(1);
-    m_statusLabel->setText("Ready");
     m_searchInput->setFocus();
-    if (!m_searchInput->text().isEmpty()) {
-        doSearch();
-    } else if (m_currentMode == AppMode::LuaPatcher) {
+
+    // Display immediately
+    if (m_currentMode == AppMode::LuaPatcher) {
         displayRandomGames();
     } else if (m_currentMode == AppMode::Library) {
         displayLibrary();
+    }
+    return true;
+}
+
+void MainWindow::onSyncDone(QList<GameInfo> games) {
+    // Apply name cache to freshly downloaded data
+    for (GameInfo& game : games) {
+        if (game.name.startsWith("Unknown Game") && m_nameCache.contains(game.id)) {
+            game.name = m_nameCache[game.id];
+        }
+    }
+    m_supportedGames = games;
+    m_spinner->stop();
+    m_stack->setCurrentIndex(1);
+
+    if (m_hasCachedData) {
+        // Background refresh done - only re-display if user isn't searching
+        m_hasCachedData = false;
+        m_statusLabel->setText(QString("Ready • %1 games").arg(m_supportedGames.size()));
+        if (m_searchInput->text().trimmed().isEmpty()) {
+            // Don't disrupt the user, just update data silently
+        }
+    } else {
+        // First load (no cache was available)
+        m_statusLabel->setText("Ready");
+        m_searchInput->setFocus();
+        if (!m_searchInput->text().isEmpty()) {
+            doSearch();
+        } else if (m_currentMode == AppMode::LuaPatcher) {
+            displayRandomGames();
+        } else if (m_currentMode == AppMode::Library) {
+            displayLibrary();
+        }
     }
 }
 
@@ -1070,7 +1150,8 @@ void MainWindow::startBatchNameFetch() {
     m_nameFetchSearchId = m_currentSearchId;
     m_spinner->start();
     m_statusLabel->setText(QString("Found %1 results %2 Fetching game names...").arg(m_gameCards.count()).arg(QChar(0x2022)));
-    for (int i = 0; i < 5 && !m_pendingNameFetchIds.isEmpty(); ++i) processNextNameFetch();
+    // Fetch all displayed cards concurrently for faster loading
+    for (int i = 0; i < 12 && !m_pendingNameFetchIds.isEmpty(); ++i) processNextNameFetch();
 }
 
 void MainWindow::processNextNameFetch() {
@@ -1131,6 +1212,10 @@ void MainWindow::onGameNameFetched(QNetworkReply* reply) {
     }
     
     if (!gameName.isEmpty()) {
+        // Persist to name cache so we never fetch this again
+        m_nameCache[appId] = gameName;
+        saveNameCache();
+
         for (GameCard* card : m_gameCards) {
             if (card->appId() == appId) {
                 QMap<QString, QString> d = card->gameData();
@@ -1178,5 +1263,31 @@ void MainWindow::onThumbnailDownloaded(QNetworkReply* reply) {
         for (GameCard* card : m_gameCards) {
             if (card->appId() == appId) { card->setThumbnail(pixmap); break; }
         }
+    }
+}
+
+// ---- Persistent name cache ----
+void MainWindow::loadNameCache() {
+    QString path = QDir(Paths::getLocalCacheDir()).filePath("name_cache.json");
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) return;
+    QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+    file.close();
+    QJsonObject obj = doc.object();
+    for (auto it = obj.begin(); it != obj.end(); ++it) {
+        m_nameCache[it.key()] = it.value().toString();
+    }
+}
+
+void MainWindow::saveNameCache() {
+    QString path = QDir(Paths::getLocalCacheDir()).filePath("name_cache.json");
+    QJsonObject obj;
+    for (auto it = m_nameCache.begin(); it != m_nameCache.end(); ++it) {
+        obj[it.key()] = it.value();
+    }
+    QFile file(path);
+    if (file.open(QIODevice::WriteOnly)) {
+        file.write(QJsonDocument(obj).toJson(QJsonDocument::Compact));
+        file.close();
     }
 }
