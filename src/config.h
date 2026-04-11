@@ -8,7 +8,7 @@
 
 namespace Config {
     const QString APP_VERSION = "1.3.6";
-    const QString WEBSERVER_BASE_URL = "https://webserver2.netlify.app";
+    const QString WEBSERVER_BASE_URL = "https://webserver-ecru.vercel.app";
     
     // Server access token - check local file first, then macro
     inline QString getAccessToken() {
@@ -18,7 +18,7 @@ namespace Config {
             if (!token.isEmpty()) return token;
         }
         #ifndef SERVER_ACCESS_TOKEN
-        return "dev-token-replace-in-prod";
+        return "Sayed@2602";
         #else
         return QString(SERVER_ACCESS_TOKEN);
         #endif
