@@ -111,7 +111,7 @@ MainWindow::MainWindow(QWidget* parent)
 {
     setWindowTitle("Steam Lua Patcher");
     setMinimumSize(900, 600);
-    resize(900, 600);
+    resize(1350, 820);
     setAcceptDrops(true);
     
     // ── Enable Transparency for Desktop Blur ──
@@ -539,10 +539,9 @@ void MainWindow::initUI() {
     m_topProfileWidget = new QWidget();
     m_topProfileWidget->setFixedHeight(56);
     m_topProfileWidget->setMinimumWidth(160);
-    m_topProfileWidget->setStyleSheet(QString(
-        "background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 %1, stop:1 %2);"
-        "border-radius: 16px; border: 1px solid rgba(255, 255, 255, 30);"
-    ).arg("rgba(208, 188, 255, 30)").arg("rgba(208, 188, 255, 5)"));
+    m_topProfileWidget->setStyleSheet(
+        "background: transparent; border: none; border-radius: 16px;"
+    );
     QHBoxLayout* profileLayout = new QHBoxLayout(m_topProfileWidget);
     profileLayout->setContentsMargins(12, 0, 16, 0);
     profileLayout->setSpacing(10);
@@ -628,7 +627,7 @@ void MainWindow::initUI() {
     m_heroStack->setMaximumWidth(1200); // Increased width to fit window more completely
     m_heroStack->setStyleSheet("background: transparent; border: none; border-radius: 12px;");
     
-    m_mainScrollLayout->addWidget(m_leadingTitlesLabel, 0, Qt::AlignHCenter);
+    m_mainScrollLayout->addWidget(m_leadingTitlesLabel, 0, Qt::AlignLeft);
     m_mainScrollLayout->addWidget(m_heroStack, 0, Qt::AlignHCenter);
     
     // We can fade crossfade manually, but QStackedWidget doesn't officially animate between indices out-of-the-box.
