@@ -8,7 +8,7 @@
 QString getStyleSheet() {
     return QString(R"(
 QMainWindow {
-    background: %1;
+    background: transparent;
 }
 
 QWidget {

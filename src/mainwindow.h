@@ -11,6 +11,7 @@
 #include <QProgressBar>
 #include <QStackedWidget>
 #include <QTimer>
+#include <QPropertyAnimation>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QScrollArea>
@@ -45,6 +46,8 @@ public:
 
 protected:
     void paintEvent(QPaintEvent* event) override;
+    bool nativeEvent(const QByteArray &eventType, void *message, qintptr *result) override;
+    bool eventFilter(QObject *obj, QEvent *event) override;
     void dragEnterEvent(QDragEnterEvent* event) override;
     void dropEvent(QDropEvent* event) override;
 
@@ -78,10 +81,14 @@ private:
     void clearGameCards();
     void displayRandomGames();
     void displayLibrary();
+    void fetchTrendingGames();
+    void onTrendingFetched(QNetworkReply* reply);
+    void scrollCarousel();
     void loadNameCache();
     void saveNameCache();
     bool loadCachedIndex();
     void updateAmbientGlow();
+    void enableAcrylicBlur();
 
     // UI Components
     QString m_username;
@@ -96,10 +103,18 @@ private:
     QVBoxLayout* m_mainScrollLayout;
     QScrollArea* m_mainScrollArea;
     
-    QWidget* m_heroBanner;
+    QLabel* m_leadingTitlesLabel;
+    QStackedWidget* m_heroStack;
     
-    // Rows
+    QTimer* m_heroCarouselTimer;
+    QList<GameInfo> m_heroGames;
+    int m_currentHeroIndex = 0;
+    
+    // Trending (hidden row, cards go into hero banner now)
+    QLabel* m_trendingTitle;
+    QScrollArea* m_trendingScroll;
     QHBoxLayout* m_trendingLayout;
+    QLabel* m_gridTitleLabel;
     QWidget* m_gridContainer;
     QGridLayout* m_gridLayout;
     QList<GameCard*> m_gameCards;
@@ -150,6 +165,9 @@ private:
     // Thumbnail cache
     QMap<QString, QPixmap> m_thumbnailCache;
     QSet<QString> m_activeThumbnailDownloads;
+    
+    // Trending games (from SteamSpy)
+    QStringList m_trendingAppIds;
     
     // Ambient Glow
     QTimer* m_glowTimer;

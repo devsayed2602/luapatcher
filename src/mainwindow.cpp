@@ -12,8 +12,20 @@
 #include "config.h"
 #include <QDesktopServices>
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <dwmapi.h>
+#include <windowsx.h>
+// windows.h defines ERROR as a macro which conflicts with Colors::ERROR
+#undef ERROR
+#endif
+
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <QPointer>
+#include <QFileDialog>
+#include <QStackedLayout>
+#include <QPropertyAnimation>
 #include <QPainter>
 #include <QLinearGradient>
 #include <QGraphicsDropShadowEffect>
@@ -102,12 +114,18 @@ MainWindow::MainWindow(QWidget* parent)
     resize(900, 600);
     setAcceptDrops(true);
     
+    // ── Enable Transparency for Desktop Blur ──
+    setAttribute(Qt::WA_TranslucentBackground);
+    
     QString iconPath = Paths::getResourcePath("logo.ico");
     if (QFile::exists(iconPath)) {
         setWindowIcon(QIcon(iconPath));
     }
     
     initUI();
+    
+    // Apply Desktop Acrylic/Mica Blur
+    enableAcrylicBlur();
     
     // Retrieve username from settings (already checked in main.cpp)
     QSettings settings("LuaPatcher", "SteamLuaPatcher");
@@ -127,6 +145,7 @@ MainWindow::MainWindow(QWidget* parent)
         connect(m_networkManager, &QNetworkAccessManager::finished,
                 this, &MainWindow::onSearchFinished);
         startSync();
+        fetchTrendingGames();
     });
 }
 
@@ -135,6 +154,94 @@ MainWindow::~MainWindow() {
         m_activeReply->abort();
         m_activeReply->deleteLater();
     }
+}
+
+// ── Win32 Acrylic/Mica Blur ──
+void MainWindow::enableAcrylicBlur() {
+#ifdef Q_OS_WIN
+    HWND hwnd = reinterpret_cast<HWND>(winId());
+    
+    // Step 1: Extend DWM frame into entire client area (required for blur visibility)
+    MARGINS margins = {-1, -1, -1, -1};
+    DwmExtendFrameIntoClientArea(hwnd, &margins);
+    
+    // Step 2: Try Windows 11 system backdrop (DWMWA_SYSTEMBACKDROP_TYPE = 38)
+    // Value 3 = DWMSBT_TRANSIENTWINDOW (Acrylic), Value 2 = DWMSBT_MAINWINDOW (Mica)
+    int backdropType = 3;
+    HRESULT hr = DwmSetWindowAttribute(hwnd, 38, &backdropType, sizeof(backdropType));
+    
+    // Step 3: If Win11 backdrop failed, use SetWindowCompositionAttribute (Win10 1803+)
+    if (FAILED(hr)) {
+        struct ACCENT_POLICY {
+            int AccentState;
+            int AccentFlags;
+            int GradientColor;
+            int AnimationId;
+        };
+        struct WINDOWCOMPOSITIONATTRIBDATA {
+            int Attrib;
+            PVOID pvData;
+            SIZE_T cbData;
+        };
+        typedef BOOL(WINAPI* pSetWindowCompositionAttribute)(HWND, WINDOWCOMPOSITIONATTRIBDATA*);
+        
+        HMODULE hUser = GetModuleHandleA("user32.dll");
+        if (hUser) {
+            auto SetWCA = (pSetWindowCompositionAttribute)GetProcAddress(hUser, "SetWindowCompositionAttribute");
+            if (SetWCA) {
+                ACCENT_POLICY policy = {};
+                policy.AccentState = 4; // ACCENT_ENABLE_ACRYLICBLURBEHIND
+                policy.AccentFlags = 2; // ACCENT_FLAG_DRAW_ALL
+                policy.GradientColor = 0x99191B21; // AABBGGRR — dark tint
+                
+                WINDOWCOMPOSITIONATTRIBDATA data = {};
+                data.Attrib = 19; // WCA_ACCENT_POLICY
+                data.pvData = &policy;
+                data.cbData = sizeof(policy);
+                
+                SetWCA(hwnd, &data);
+            }
+        }
+    }
+#endif
+}
+
+// ── Native event passthrough ──
+bool MainWindow::nativeEvent(const QByteArray &eventType, void *message, qintptr *result) {
+    return QMainWindow::nativeEvent(eventType, message, result);
+}
+
+bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
+    if (event->type() == QEvent::MouseButtonPress) {
+        if (obj->property("isHeroSlide").toBool()) {
+            QString appId = obj->property("gameAppId").toString();
+            for (const auto& g : m_supportedGames) {
+                if (g.id == appId) {
+                    QMap<QString, QString> cd;
+                    cd["name"] = m_nameCache.value(g.id, g.id);
+                    cd["appid"] = g.id;
+                    cd["supported"] = "true";
+                    cd["hasFix"] = g.hasFix ? "true" : "false";
+                    GameCard tempCard(this);
+                    tempCard.setGameData(cd);
+                    onCardClicked(&tempCard);
+                    return true;
+                }
+            }
+        }
+    }
+    return QMainWindow::eventFilter(obj, event);
+}
+
+void MainWindow::scrollCarousel() {
+    if (m_heroStack->count() == 0 || !m_heroStack->isVisible()) return;
+    m_currentHeroIndex++;
+    if (m_currentHeroIndex >= m_heroStack->count()) {
+        m_currentHeroIndex = 0;
+    }
+    
+    // Crossfade to the next banner
+    m_heroStack->setCurrentIndex(m_currentHeroIndex);
 }
 
 void MainWindow::updateAmbientGlow() {
@@ -156,23 +263,32 @@ void MainWindow::updateAmbientGlow() {
 void MainWindow::paintEvent(QPaintEvent* event) {
     Q_UNUSED(event);
     QPainter painter(this);
-    painter.fillRect(rect(), Colors::toQColor(Colors::SURFACE));
+    painter.setRenderHint(QPainter::Antialiasing);
     
-    if (m_currentGlowColor.isValid()) {
-        QRadialGradient glow1(rect().width() * 0.8, rect().height() * 0.4, rect().width() * 0.7);
-        QColor gc1 = m_currentGlowColor;
-        gc1.setAlpha(40);
-        glow1.setColorAt(0, gc1);
-        glow1.setColorAt(1, QColor(0, 0, 0, 0));
-        painter.fillRect(rect(), glow1);
-        
-        QRadialGradient glow2(rect().width() * 0.2, rect().height() * 0.8, rect().width() * 0.5);
-        QColor gc2 = Colors::currentTheme.secondary;
-        gc2.setAlpha(20);
-        glow2.setColorAt(0, gc2);
-        glow2.setColorAt(1, QColor(0, 0, 0, 0));
-        painter.fillRect(rect(), glow2);
-    }
+    // ── Semi-transparent dark background allowing desktop blur to show through ──
+    QLinearGradient bgGrad(0, 0, rect().width(), rect().height());
+    QColor color1(25, 27, 33); color1.setAlpha(170); // ~65% opacity
+    QColor color2(18, 19, 23); color2.setAlpha(170);
+    bgGrad.setColorAt(0.0, color1);
+    bgGrad.setColorAt(1.0, color2);
+    painter.fillRect(rect(), bgGrad);
+    
+    // ── Large warm orange/red ambient glow (top right, behind the banner) ──
+    QRadialGradient glow1(rect().width() * 0.75, rect().height() * 0.2, rect().width() * 0.6);
+    QColor warmRed(220, 60, 40); // vibrant orange-red
+    warmRed.setAlpha(35);
+    glow1.setColorAt(0, warmRed);
+    glow1.setColorAt(0.5, QColor(warmRed.red(), warmRed.green(), warmRed.blue(), 15));
+    glow1.setColorAt(1, QColor(0, 0, 0, 0));
+    painter.fillRect(rect(), glow1);
+    
+    // ── Subtle secondary glow (bottom left) ──
+    QRadialGradient glow2(rect().width() * 0.2, rect().height() * 0.8, rect().width() * 0.5);
+    QColor warmAmber(180, 100, 40);
+    warmAmber.setAlpha(20);
+    glow2.setColorAt(0, warmAmber);
+    glow2.setColorAt(1, QColor(0, 0, 0, 0));
+    painter.fillRect(rect(), glow2);
 }
 
 void MainWindow::dragEnterEvent(QDragEnterEvent* event) {
@@ -240,7 +356,7 @@ void MainWindow::initUI() {
     sidebarWidget->setAttribute(Qt::WA_StyledBackground);
     sidebarWidget->setAutoFillBackground(false);
     sidebarWidget->setStyleSheet(QString(
-        "background-color: rgba(8, 10, 18, 150); border-right: 1px solid rgba(255, 255, 255, 20);"
+        "background-color: transparent; border-right: 1px solid rgba(255, 255, 255, 10);"
     ));
     
     QVBoxLayout* sidebarLayout = new QVBoxLayout(sidebarWidget);
@@ -285,7 +401,7 @@ void MainWindow::initUI() {
     sidebarLayout->addSpacing(4);
     
     // Navigation tabs
-    m_tabLua = new GlassButton(MaterialIcons::Download, " Lua Patcher", "", Colors::PRIMARY);
+    m_tabLua = new GlassButton(MaterialIcons::Download, " App Store", "", Colors::PRIMARY);
     m_tabLua->setFixedHeight(44);
     connect(m_tabLua, &QPushButton::clicked, this, [this](){ switchMode(AppMode::LuaPatcher); });
     sidebarLayout->addWidget(m_tabLua);
@@ -299,6 +415,7 @@ void MainWindow::initUI() {
     
     m_tabSettings = new GlassButton(MaterialIcons::Settings, " Settings", "", Colors::OUTLINE);
     m_tabSettings->setFixedHeight(44);
+    connect(m_tabSettings, &QPushButton::clicked, this, [this](){ switchMode(AppMode::Settings); });
     sidebarLayout->addWidget(m_tabSettings);
     
     m_tabDiscord = new GlassButton(MaterialIcons::Discord, " Discord", "", Colors::ACCENT_BLUE);
@@ -323,7 +440,9 @@ void MainWindow::initUI() {
         "color: %1; font-size: 11px; font-family: 'Roboto', 'Segoe UI'; background: transparent; border: none;"
     ).arg(Colors::ON_SURFACE_VARIANT));
     m_statusLabel->setWordWrap(true);
-    sidebarLayout->addWidget(m_statusLabel);
+    // Removed status label from sidebar as requested by user
+    // sidebarLayout->addWidget(m_statusLabel);
+    
     sidebarLayout->addStretch();
     
     // ── Section label for actions ──
@@ -425,14 +544,46 @@ void MainWindow::initUI() {
         "border-radius: 16px; border: 1px solid rgba(255, 255, 255, 30);"
     ).arg("rgba(208, 188, 255, 30)").arg("rgba(208, 188, 255, 5)"));
     QHBoxLayout* profileLayout = new QHBoxLayout(m_topProfileWidget);
-    profileLayout->setContentsMargins(16, 0, 16, 0);
+    profileLayout->setContentsMargins(12, 0, 16, 0);
+    profileLayout->setSpacing(10);
     
-    QLabel* avatarIcon = new QLabel("👤");
-    avatarIcon->setStyleSheet("font-size: 20px; background: transparent; border: none;");
-    profileLayout->addWidget(avatarIcon);
+    // Circular avatar with first letter
+    QString displayName = m_username.isEmpty() ? "Guest" : m_username;
+    QChar firstLetter = displayName.at(0).toUpper();
     
-    m_topUsernameLabel = new QLabel(m_username.isEmpty() ? "Guest" : m_username);
-    m_topUsernameLabel->setStyleSheet("font-size: 15px; font-weight: bold; color: white; background: transparent; border: none;");
+    // Generate a deterministic vibrant color from username
+    static const QColor avatarColors[] = {
+        QColor(229, 115, 115), QColor(186, 104, 200),
+        QColor(100, 181, 246), QColor(77, 208, 225),
+        QColor(129, 199, 132), QColor(255, 183, 77),
+        QColor(240, 98, 146),  QColor(149, 117, 205),
+    };
+    int colorIdx = 0;
+    for (QChar c : displayName) colorIdx += c.unicode();
+    QColor avatarColor = avatarColors[colorIdx % 8];
+    
+    int avatarSize = 36;
+    QPixmap avatarPix(avatarSize, avatarSize);
+    avatarPix.fill(Qt::transparent);
+    QPainter avatarPainter(&avatarPix);
+    avatarPainter.setRenderHint(QPainter::Antialiasing);
+    avatarPainter.setBrush(avatarColor);
+    avatarPainter.setPen(Qt::NoPen);
+    avatarPainter.drawEllipse(0, 0, avatarSize, avatarSize);
+    avatarPainter.setPen(Qt::white);
+    QFont avatarFont("Segoe UI", 15, QFont::Bold);
+    avatarPainter.setFont(avatarFont);
+    avatarPainter.drawText(QRect(0, 0, avatarSize, avatarSize), Qt::AlignCenter, QString(firstLetter));
+    avatarPainter.end();
+    
+    QLabel* avatarLabel = new QLabel();
+    avatarLabel->setPixmap(avatarPix);
+    avatarLabel->setFixedSize(avatarSize, avatarSize);
+    avatarLabel->setStyleSheet("background: transparent; border: none;");
+    profileLayout->addWidget(avatarLabel);
+    
+    m_topUsernameLabel = new QLabel(displayName);
+    m_topUsernameLabel->setStyleSheet("font-size: 14px; font-weight: bold; color: white; background: transparent; border: none;");
     profileLayout->addWidget(m_topUsernameLabel, 1);
     topBarLayout->addWidget(m_topProfileWidget);
     
@@ -463,58 +614,56 @@ void MainWindow::initUI() {
     m_mainScrollContainer = new QWidget();
     m_mainScrollContainer->setStyleSheet("background: transparent;");
     m_mainScrollLayout = new QVBoxLayout(m_mainScrollContainer);
-    m_mainScrollLayout->setContentsMargins(0, 0, 12, 20);
-    m_mainScrollLayout->setSpacing(24);
+    // Added horizontal padding (24px) so the banner and grid fit gracefully within the window bounds
+    m_mainScrollLayout->setContentsMargins(10, 0, 10, 20);
+    m_mainScrollLayout->setSpacing(16);
     
-    // 1. Hero Banner
-    m_heroBanner = new QWidget();
-    m_heroBanner->setFixedHeight(220);
-    m_heroBanner->setStyleSheet(QString(
-        "QWidget { background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 %1, stop:1 rgba(20,20,30,255));"
-        "border-radius: 24px; border: 1px solid rgba(255,255,255,40); }"
-    ).arg("rgba(90, 50, 150, 200)"));
-    QVBoxLayout* heroLayout = new QVBoxLayout(m_heroBanner);
-    heroLayout->setContentsMargins(40, 40, 40, 40);
+    // 1. Hero Stack — holds up to 4 trending games, shows exactly one at a time
+    m_leadingTitlesLabel = new QLabel("Leading Titles");
+    m_leadingTitlesLabel->setMaximumWidth(1200);
+    m_leadingTitlesLabel->setStyleSheet("font-size: 20px; font-weight: bold; padding-left: 4px; color: white;");
     
-    QLabel* heroTitle = new QLabel("Discover & Patch");
-    heroTitle->setStyleSheet("font-size: 34px; font-weight: 800; color: white; background: transparent; border: none;");
-    heroLayout->addWidget(heroTitle);
+    m_heroStack = new QStackedWidget();
+    m_heroStack->setFixedHeight(240);
+    m_heroStack->setMaximumWidth(1200); // Increased width to fit window more completely
+    m_heroStack->setStyleSheet("background: transparent; border: none; border-radius: 12px;");
     
-    QLabel* heroSub = new QLabel("Seamlessly integrated tools to supercharge your Steam experience.");
-    heroSub->setStyleSheet("font-size: 16px; color: rgba(255,255,255,180); background: transparent; border: none;");
-    heroLayout->addWidget(heroSub);
-    heroLayout->addStretch();
-    m_mainScrollLayout->addWidget(m_heroBanner);
+    m_mainScrollLayout->addWidget(m_leadingTitlesLabel, 0, Qt::AlignHCenter);
+    m_mainScrollLayout->addWidget(m_heroStack, 0, Qt::AlignHCenter);
     
-    // 2. Trending Row (Horizontal)
-    QLabel* trendingTitle = new QLabel("Trending Games");
-    trendingTitle->setStyleSheet("font-size: 20px; font-weight: bold; padding-left: 4px; color: white;");
-    m_mainScrollLayout->addWidget(trendingTitle);
+    // We can fade crossfade manually, but QStackedWidget doesn't officially animate between indices out-of-the-box.
+    // However, it solves the scrolling 'halfway' visual bug and stays exactly fixed.
+    m_heroCarouselTimer = new QTimer(this);
+    connect(m_heroCarouselTimer, &QTimer::timeout, this, &MainWindow::scrollCarousel);
     
-    QScrollArea* trendScroll = new QScrollArea();
-    trendScroll->setWidgetResizable(true);
-    trendScroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    trendScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    trendScroll->setFixedHeight(260); // 240 card height + 20 margin
-    trendScroll->setStyleSheet("background: transparent; border: none;");
     
+    // 2. Hidden trending container (still needed for trending card data)
+    m_trendingTitle = new QLabel("Trending Games");
+    m_trendingTitle->hide();
+    m_mainScrollLayout->addWidget(m_trendingTitle);
+    
+    m_trendingScroll = new QScrollArea();
+    m_trendingScroll->setWidgetResizable(true);
+    m_trendingScroll->setFixedHeight(0);
+    m_trendingScroll->hide();
+    m_trendingScroll->setStyleSheet("background: transparent; border: none;");
     QWidget* trendContainer = new QWidget();
     m_trendingLayout = new QHBoxLayout(trendContainer);
-    m_trendingLayout->setContentsMargins(4, 4, 4, 4);
-    m_trendingLayout->setSpacing(16);
+    m_trendingLayout->setContentsMargins(0, 0, 0, 0);
     m_trendingLayout->setAlignment(Qt::AlignLeft);
-    trendScroll->setWidget(trendContainer);
-    m_mainScrollLayout->addWidget(trendScroll);
+    m_trendingScroll->setWidget(trendContainer);
+    m_mainScrollLayout->addWidget(m_trendingScroll);
     
     // 3. All Games Grid
-    QLabel* allTitle = new QLabel("All Available Games");
-    allTitle->setStyleSheet("font-size: 20px; font-weight: bold; padding-left: 4px; color: white; margin-top: 10px;");
-    m_mainScrollLayout->addWidget(allTitle);
+    m_gridTitleLabel = new QLabel("All Available Games");
+    m_gridTitleLabel->setStyleSheet("font-size: 20px; font-weight: bold; padding-left: 4px; color: white;");
+    m_mainScrollLayout->addWidget(m_gridTitleLabel);
     
     m_gridContainer = new QWidget();
     m_gridLayout = new QGridLayout(m_gridContainer);
     m_gridLayout->setContentsMargins(4, 4, 4, 4);
-    m_gridLayout->setSpacing(20);
+    m_gridLayout->setSpacing(14);
+    m_gridLayout->setAlignment(Qt::AlignLeft | Qt::AlignTop);
     m_mainScrollLayout->addWidget(m_gridContainer);
     
     m_mainScrollArea->setWidget(m_mainScrollContainer);
@@ -522,6 +671,44 @@ void MainWindow::initUI() {
             this, &MainWindow::loadVisibleThumbnails);
     
     m_stack->addWidget(m_mainScrollArea); // index 1
+    
+    // 4. Settings Page
+    QWidget* settingsWidget = new QWidget();
+    settingsWidget->setStyleSheet("background: transparent;");
+    QVBoxLayout* settingsLayout = new QVBoxLayout(settingsWidget);
+    settingsLayout->setAlignment(Qt::AlignTop);
+    
+    QLabel* settingsTitle = new QLabel("Settings");
+    settingsTitle->setStyleSheet("font-size: 24px; font-weight: bold; color: white;");
+    settingsLayout->addWidget(settingsTitle);
+    settingsLayout->addSpacing(20);
+    
+    QLabel* pathLabel = new QLabel("Steam Plugin Folder Path:");
+    pathLabel->setStyleSheet("color: rgba(255,255,255,160); font-size: 14px;");
+    settingsLayout->addWidget(pathLabel);
+    
+    QHBoxLayout* pathLayout = new QHBoxLayout();
+    QLineEdit* pathInput = new QLineEdit(Config::getSteamPluginDir());
+    pathInput->setStyleSheet("background: rgba(8, 10, 18, 150); border: 1px solid rgba(255,255,255,25); color: white; padding: 10px; border-radius: 6px; font-size: 14px;");
+    pathInput->setReadOnly(true);
+    pathLayout->addWidget(pathInput);
+    
+    GlassButton* browseBtn = new GlassButton(MaterialIcons::Search, " Browse...", "", Colors::PRIMARY);
+    browseBtn->setFixedHeight(44);
+    connect(browseBtn, &QPushButton::clicked, this, [this, pathInput]() {
+        QString dir = QFileDialog::getExistingDirectory(this, "Select Steam Plugin Directory", pathInput->text());
+        if (!dir.isEmpty()) {
+            // Unify separators visually
+            pathInput->setText(dir);
+            QSettings s("LuaPatcher", "SteamLuaPatcher");
+            s.setValue("PluginDir", dir);
+        }
+    });
+    pathLayout->addWidget(browseBtn);
+    settingsLayout->addLayout(pathLayout);
+    settingsLayout->addStretch();
+    m_stack->addWidget(settingsWidget); // index 2
+    
     mainLayout->addWidget(m_stack);
     
     // Progress bar - Material linear progress
@@ -574,59 +761,165 @@ void MainWindow::displayRandomGames() {
     if (m_supportedGames.isEmpty()) return;
 
     // Show Home-specific components
-    m_heroBanner->show();
+    if (m_leadingTitlesLabel) m_leadingTitlesLabel->show();
+    if (m_heroStack) m_heroStack->show();
     m_mainScrollArea->show();
     
-    // The main scroll layout has: Hero(0), TrendingTitle(1), TrendingRow(2), GridTitle(3), Grid(4)
-    // Actually looking at my initUI:
-    // 0: Hero
-    // 1: Trending Title
-    // 2: Trending Scroll Area
-    // 3: Grid Title
-    // 4: Grid Wrapper
-    
-    if (m_mainScrollLayout->count() > 4) {
-        m_mainScrollLayout->itemAt(1)->widget()->show(); // Trending Title
-        m_mainScrollLayout->itemAt(2)->widget()->show(); // Trending Row
-        static_cast<QLabel*>(m_mainScrollLayout->itemAt(3)->widget())->setText("All Available Games");
-    }
+    // Update grid title
+    m_gridTitleLabel->setText("All Available Games");
 
+    // Build a set of supported IDs for fast lookup
+    QSet<QString> supportedIds;
+    for (const auto& g : m_supportedGames) supportedIds.insert(g.id);
+
+    // Featured trending games for hero banner carousel
+    QList<GameInfo> carouselGames;
+    if (!m_trendingAppIds.isEmpty()) {
+        for (const QString& tid : m_trendingAppIds) {
+            if (!supportedIds.contains(tid)) continue;
+            for (const auto& g : m_supportedGames) {
+                if (g.id == tid) { carouselGames.append(g); break; }
+            }
+            if (carouselGames.size() >= 4) break;
+        }
+    }
+    
+    // Fallback: pick random supported games
+    if (carouselGames.size() < 4 && !m_supportedGames.isEmpty()) {
+        QList<GameInfo> randGames = m_supportedGames;
+        auto *rng = QRandomGenerator::global();
+        for (int i = randGames.size() - 1; i > 0; --i) {
+            randGames.swapItemsAt(i, rng->bounded(i + 1));
+        }
+        for (int i = 0; i < qMin(4 - carouselGames.size(), (int)randGames.size()); ++i) {
+            carouselGames.append(randGames[i]);
+        }
+    }
+    
+    // Clear old carousel slides
+    while (m_heroStack->count() > 0) {
+        QWidget* w = m_heroStack->widget(0);
+        m_heroStack->removeWidget(w);
+        w->deleteLater();
+    }
+    m_currentHeroIndex = 0;
+    
+    // Build new slides
+    for (const GameInfo& game : carouselGames) {
+        QString featuredId = game.id;
+        QString featuredName = game.name;
+        if (featuredName.isEmpty() || featuredName == game.id) {
+            featuredName = m_nameCache.contains(game.id) ? m_nameCache[game.id] : game.id;
+        }
+        
+        QWidget* slide = new QWidget();
+        slide->setFixedHeight(240);
+        slide->setCursor(Qt::PointingHandCursor);
+        slide->setProperty("isHeroSlide", true);
+        slide->setProperty("gameAppId", featuredId);
+        slide->installEventFilter(this);
+        
+        QStackedLayout* stack = new QStackedLayout(slide);
+        stack->setStackingMode(QStackedLayout::StackAll);
+        stack->setContentsMargins(0,0,0,0);
+        
+        QLabel* imgLabel = new QLabel();
+        imgLabel->setStyleSheet("border-radius: 12px; border: none; background: transparent;");
+        imgLabel->setScaledContents(true);
+        stack->addWidget(imgLabel);
+        
+        QWidget* overlay = new QWidget();
+        overlay->setFixedHeight(240);
+        overlay->setStyleSheet(
+            "background: qlineargradient(x1:0, y1:1, x2:0, y2:0, stop:0 rgba(0,0,0,220), stop:0.4 rgba(0,0,0,0));"
+            "border-radius: 12px;"
+        );
+        QVBoxLayout* overlayLayout = new QVBoxLayout(overlay);
+        overlayLayout->addStretch(1);
+        
+        QLabel* nameLbl = new QLabel(featuredName);
+        nameLbl->setStyleSheet("font-size: 26px; font-weight: bold; color: white; background: transparent; border: none;");
+        nameLbl->setAlignment(Qt::AlignHCenter);
+        overlayLayout->addWidget(nameLbl);
+        
+        QLabel* idLbl = new QLabel(QString("App ID: %1").arg(featuredId));
+        idLbl->setStyleSheet("font-size: 14px; color: #aaaaaa; background: transparent; border: none;");
+        idLbl->setAlignment(Qt::AlignHCenter);
+        overlayLayout->addWidget(idLbl);
+        overlayLayout->addSpacing(15);
+        
+        stack->addWidget(overlay);
+        m_heroStack->addWidget(slide);
+        
+        // Fetch high-quality hero image, with fallback to low-res header
+        QString heroUrl = QString("https://cdn.akamai.steamstatic.com/steam/apps/%1/library_hero.jpg").arg(featuredId);
+        QNetworkRequest req{QUrl(heroUrl)};
+        req.setHeader(QNetworkRequest::UserAgentHeader, "SteamLuaPatcher/2.0");
+        QNetworkReply* heroReply = m_networkManager->get(req);
+        
+        QPointer<QLabel> safeImgLabel(imgLabel);
+        auto* nm = m_networkManager;
+        connect(heroReply, &QNetworkReply::finished, this, [heroReply, safeImgLabel, nm, featuredId]() {
+            heroReply->deleteLater();
+            bool success = false;
+            if (heroReply->error() == QNetworkReply::NoError && safeImgLabel) {
+                QPixmap rawPix;
+                if (rawPix.loadFromData(heroReply->readAll())) {
+                    // Create rounded version to ensure corners aren't sharp
+                    QPixmap rounded(rawPix.size());
+                    rounded.fill(Qt::transparent);
+                    QPainter painter(&rounded);
+                    painter.setRenderHint(QPainter::Antialiasing);
+                    QPainterPath path;
+                    path.addRoundedRect(rounded.rect(), 35, 35); // Visual radius for the raw buffer
+                    painter.setClipPath(path);
+                    painter.drawPixmap(0, 0, rawPix);
+                    
+                    if (safeImgLabel) safeImgLabel->setPixmap(rounded);
+                    success = true;
+                }
+            }
+            // Fallback strategy if HD library hero is missing (fetch low-res header)
+            if (!success && safeImgLabel && nm) {
+                QString fallbackUrl = QString("https://cdn.akamai.steamstatic.com/steam/apps/%1/header.jpg").arg(featuredId);
+                QNetworkRequest fallbackReq{QUrl(fallbackUrl)};
+                fallbackReq.setHeader(QNetworkRequest::UserAgentHeader, "SteamLuaPatcher/2.0");
+                QNetworkReply* fallbackReply = nm->get(fallbackReq);
+                connect(fallbackReply, &QNetworkReply::finished, [fallbackReply, safeImgLabel]() {
+                    fallbackReply->deleteLater();
+                    if (fallbackReply->error() == QNetworkReply::NoError && safeImgLabel) {
+                        QPixmap rawPix;
+                        if (rawPix.loadFromData(fallbackReply->readAll())) {
+                            QPixmap rounded(rawPix.size());
+                            rounded.fill(Qt::transparent);
+                            QPainter painter(&rounded);
+                            painter.setRenderHint(QPainter::Antialiasing);
+                            QPainterPath path;
+                            path.addRoundedRect(rounded.rect(), 25, 25);
+                            painter.setClipPath(path);
+                            painter.drawPixmap(0, 0, rawPix);
+                            if (safeImgLabel) safeImgLabel->setPixmap(rounded);
+                        }
+                    }
+                });
+            }
+        });
+    }
+    
+    // Start slider timer to rotate every 5 seconds
+    m_heroCarouselTimer->start(5000);
+
+    // All Games Grid — shuffled
     QList<GameInfo> shuffled = m_supportedGames;
     auto *rng = QRandomGenerator::global();
     for (int i = shuffled.size() - 1; i > 0; --i) {
         int j = rng->bounded(i + 1);
         shuffled.swapItemsAt(i, j);
     }
-
-    // 1. Trending Row (6 games)
-    int trendCount = qMin(8, shuffled.size()); // Let's show 8 in trending
-    for (int i = 0; i < trendCount; ++i) {
-        const GameInfo& game = shuffled[i];
-        
-        QMap<QString, QString> cd;
-        cd["name"] = game.name;
-        cd["appid"] = game.id;
-        cd["supported"] = "true";
-        cd["hasFix"] = game.hasFix ? "true" : "false";
-
-        if (cd["name"].isEmpty() || cd["name"] == game.id) {
-            cd["name"] = m_nameCache.contains(game.id) ? m_nameCache[game.id] : "Loading...";
-        }
-        if (cd["name"] == "Loading...") m_pendingNameFetchIds.append(game.id);
-
-        GameCard* card = new GameCard(m_trendingLayout->parentWidget());
-        card->setGameData(cd);
-        connect(card, &GameCard::clicked, this, &MainWindow::onCardClicked);
-        m_trendingLayout->addWidget(card);
-        m_gameCards.append(card);
-
-        if (m_thumbnailCache.contains(game.id)) card->setThumbnail(m_thumbnailCache[game.id]);
-    }
-
-    // 2. All Games Grid (The rest)
-    int gridCount = qMin(30, (int)shuffled.size() - trendCount);
-    for (int i = 0; i < gridCount; ++i) {
-        const GameInfo& game = shuffled[trendCount + i];
+    
+    int gridIdx = 0;
+    for (const GameInfo& game : shuffled) {
+        if (gridIdx >= 36) break;
         
         QMap<QString, QString> cd;
         cd["name"] = game.name;
@@ -642,10 +935,11 @@ void MainWindow::displayRandomGames() {
         GameCard* card = new GameCard(m_gridLayout->parentWidget());
         card->setGameData(cd);
         connect(card, &GameCard::clicked, this, &MainWindow::onCardClicked);
-        m_gridLayout->addWidget(card, i / 6, i % 6); // 6 columns on wide screens
+        m_gridLayout->addWidget(card, gridIdx / 6, gridIdx % 6);
         m_gameCards.append(card);
 
         if (m_thumbnailCache.contains(game.id)) card->setThumbnail(m_thumbnailCache[game.id]);
+        gridIdx++;
     }
 
     QTimer::singleShot(50, this, &MainWindow::loadVisibleThumbnails);
@@ -656,6 +950,39 @@ void MainWindow::displayRandomGames() {
     m_spinner->stop();
 }
 
+// ---- Fetch trending games from SteamSpy ----
+void MainWindow::fetchTrendingGames() {
+    if (!m_networkManager) return;
+    
+    QUrl url("https://steamspy.com/api.php?request=top100in2weeks");
+    QNetworkRequest req(url);
+    req.setHeader(QNetworkRequest::UserAgentHeader, "SteamLuaPatcher/2.0");
+    
+    QNetworkReply* reply = m_networkManager->get(req);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        onTrendingFetched(reply);
+    });
+}
+
+void MainWindow::onTrendingFetched(QNetworkReply* reply) {
+    reply->deleteLater();
+    if (reply->error() != QNetworkReply::NoError) return;
+    
+    QJsonObject obj = QJsonDocument::fromJson(reply->readAll()).object();
+    m_trendingAppIds.clear();
+    
+    // SteamSpy returns {appid: {data...}, ...} — keys are the app IDs
+    // They come sorted by popularity already
+    for (auto it = obj.begin(); it != obj.end(); ++it) {
+        m_trendingAppIds.append(it.key());
+    }
+    
+    // Refresh the display if we're on the home screen
+    if (m_currentMode == AppMode::LuaPatcher && m_searchInput->text().trimmed().isEmpty()) {
+        displayRandomGames();
+    }
+}
+
 // ---- Display installed patches (Library) ----
 void MainWindow::displayLibrary() {
     clearGameCards();
@@ -664,12 +991,11 @@ void MainWindow::displayLibrary() {
     m_btnRemove->setEnabled(false);
     
     // Hide Home-specific components
-    m_heroBanner->hide();
-    if (m_mainScrollLayout->count() > 4) {
-        m_mainScrollLayout->itemAt(1)->widget()->hide(); // Trending Title label
-        m_mainScrollLayout->itemAt(2)->widget()->hide(); // Trending Row
-        static_cast<QLabel*>(m_mainScrollLayout->itemAt(3)->widget())->setText("Installed Patches"); 
-    }
+    if (m_leadingTitlesLabel) m_leadingTitlesLabel->hide();
+    if (m_heroStack) m_heroStack->hide();
+    if (m_trendingTitle) m_trendingTitle->hide();
+    if (m_trendingScroll) m_trendingScroll->hide();
+    if (m_gridTitleLabel) m_gridTitleLabel->setText("Installed Patches");
 
     QStringList pluginDirs = Config::getAllSteamPluginDirs();
     QSet<QString> installedAppIds;
@@ -842,11 +1168,10 @@ void MainWindow::onSearchChanged(const QString& text) {
     
     // UI feedback for home vs search
     if (trimmed.isEmpty()) {
-        m_heroBanner->show();
-        if (m_mainScrollLayout->count() > 4) {
-            m_mainScrollLayout->itemAt(1)->widget()->show();
-            m_mainScrollLayout->itemAt(2)->widget()->show();
-        }
+        if (m_leadingTitlesLabel) m_leadingTitlesLabel->show();
+        if (m_heroStack) m_heroStack->show();
+        if (m_trendingTitle) m_trendingTitle->show();
+        if (m_trendingScroll) m_trendingScroll->show();
         
         clearGameCards();
         if (m_currentMode == AppMode::LuaPatcher) {
@@ -855,11 +1180,10 @@ void MainWindow::onSearchChanged(const QString& text) {
             displayLibrary();
         }
     } else {
-        m_heroBanner->hide();
-        if (m_mainScrollLayout->count() > 4) {
-            m_mainScrollLayout->itemAt(1)->widget()->hide();
-            m_mainScrollLayout->itemAt(2)->widget()->hide();
-        }
+        if (m_leadingTitlesLabel) m_leadingTitlesLabel->hide();
+        if (m_heroStack) m_heroStack->hide();
+        if (m_trendingTitle) m_trendingTitle->hide();
+        if (m_trendingScroll) m_trendingScroll->hide();
         m_debounceTimer->stop();
         m_debounceTimer->start(400);
     }
@@ -1056,12 +1380,11 @@ void MainWindow::displayResults(const QJsonArray& items) {
     }
 
     // Hide Home components
-    m_heroBanner->hide();
-    if (m_mainScrollLayout->count() > 4) {
-        m_mainScrollLayout->itemAt(1)->widget()->hide();
-        m_mainScrollLayout->itemAt(2)->widget()->hide();
-        static_cast<QLabel*>(m_mainScrollLayout->itemAt(3)->widget())->setText(QString("Results (%1)").arg(items.size()));
-    }
+    if (m_leadingTitlesLabel) m_leadingTitlesLabel->hide();
+    if (m_heroStack) m_heroStack->hide();
+    if (m_trendingTitle) m_trendingTitle->hide();
+    if (m_trendingScroll) m_trendingScroll->hide();
+    if (m_gridTitleLabel) m_gridTitleLabel->setText(QString("Results (%1)").arg(items.size()));
 
     int idx = 0;
     for (const QJsonValue& val : items) {
@@ -1321,7 +1644,11 @@ void MainWindow::updateModeUI() {
         m_btnRemove->show();
     }
     
-    m_stack->setCurrentIndex(1);
+    if (m_currentMode == AppMode::Settings) {
+        m_stack->setCurrentIndex(2);
+    } else {
+        m_stack->setCurrentIndex(1);
+    }
 }
 
 // ---- Batch name fetch ----
@@ -1442,13 +1769,37 @@ void MainWindow::onThumbnailDownloaded(QNetworkReply* reply) {
     reply->deleteLater();
     QString appId = reply->property("appid").toString();
     m_activeThumbnailDownloads.remove(appId);
-    if (reply->error() != QNetworkReply::NoError || appId.isEmpty()) return;
+    
+    if (appId.isEmpty()) return;
     
     QPixmap pixmap;
-    if (pixmap.loadFromData(reply->readAll())) {
-        m_thumbnailCache[appId] = pixmap;
-        for (GameCard* card : m_gameCards) {
-            if (card->appId() == appId) { card->setThumbnail(pixmap); break; }
+    bool success = (reply->error() == QNetworkReply::NoError) && pixmap.loadFromData(reply->readAll());
+    
+    // Fallback logic for older games that don't have the new vertical Steam library asset
+    if (!success) {
+        QString originalUrl = reply->url().toString();
+        if (originalUrl.endsWith("library_600x900_2x.jpg")) {
+            m_activeThumbnailDownloads.insert(appId);
+            QString fallbackUrl = QString("https://cdn.akamai.steamstatic.com/steam/apps/%1/header.jpg").arg(appId);
+            QNetworkRequest req{QUrl(fallbackUrl)};
+            QNetworkReply* tr = m_networkManager->get(req);
+            tr->setProperty("appid", appId);
+            connect(tr, &QNetworkReply::finished, this, [this, tr]() { onThumbnailDownloaded(tr); });
+            return;
+        }
+        
+        // If even fallback fails, aggressively cache failure as a null pixmap
+        // to prevent spamming the steam servers on every frame scroll
+        m_thumbnailCache[appId] = QPixmap();
+        return;
+    }
+    
+    // Save successful fetch to cache and aggressively update matching UI cards
+    m_thumbnailCache[appId] = pixmap;
+    for (GameCard* card : m_gameCards) {
+        if (card->appId() == appId) {
+            card->setThumbnail(pixmap);
+            // Don't break, multiple modes might show the same appID (e.g. search + library)
         }
     }
 }

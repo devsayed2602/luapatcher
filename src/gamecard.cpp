@@ -12,10 +12,9 @@
 GameCard::GameCard(QWidget* parent)
     : QWidget(parent)
 {
-    setMinimumSize(160, 240);
+    setFixedSize(170, 256);
     setCursor(Qt::PointingHandCursor);
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    setFixedSize(160, 240);
 }
 
 void GameCard::setGameData(const QMap<QString, QString>& data) {
@@ -125,7 +124,7 @@ void GameCard::paintEvent(QPaintEvent* event) {
     painter.setRenderHint(QPainter::SmoothPixmapTransform);
 
     QRectF cardRect = QRectF(rect()).adjusted(4, 4, -4, -4);
-    int radius = 20; // Liquid glass soft corners
+    int radius = 8; // User requested sharp corners
     bool supported = (m_data.value("supported") == "true");
 
     // ── Outer Glow ──
@@ -214,8 +213,12 @@ void GameCard::paintEvent(QPaintEvent* event) {
     }
 
     if (m_hasThumbnail) {
-        // Stretch thumbnail to fill card
-        painter.drawPixmap(cardRect.toRect(), m_thumbnail);
+        // Scale proportionally to fill completely, then center-crop the excess
+        QSize cardSize = cardRect.size().toSize();
+        QPixmap scaled = m_thumbnail.scaled(cardSize, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+        int sx = (scaled.width() - cardSize.width()) / 2;
+        int sy = (scaled.height() - cardSize.height()) / 2;
+        painter.drawPixmap(cardRect.toRect(), scaled, QRect(sx, sy, cardSize.width(), cardSize.height()));
     } else {
         // Material surface container background
         QColor surfaceColor = Colors::toQColor(Colors::SURFACE_CONTAINER_HIGH);
@@ -239,7 +242,7 @@ void GameCard::paintEvent(QPaintEvent* event) {
     }
 
     // ── Bottom info area ──
-    int infoHeight = 62;
+    int infoHeight = 60; 
     QRectF infoRect(cardRect.left(), cardRect.bottom() - infoHeight,
                     cardRect.width(), infoHeight);
 
@@ -328,7 +331,7 @@ void GameCard::paintEvent(QPaintEvent* event) {
         // Material container background
         QColor badgeColor = Colors::toQColor(Colors::ACCENT_GREEN);
         QPainterPath badgePath;
-        badgePath.addRoundedRect(badgeRect, 12, 12);
+        badgePath.addRoundedRect(badgeRect, 6, 6); // Reduced from 12 for sharper corners
         painter.fillPath(badgePath, badgeColor);
 
         // Check icon

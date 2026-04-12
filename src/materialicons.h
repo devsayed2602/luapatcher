@@ -276,23 +276,25 @@ private:
 
     // Settings / Gear
     static void drawSettings(QPainter& p) {
-        // Let's use a simpler gear:
-        QPen pen(p.brush().color(), 2.5);
+        QColor color = p.brush().color();
         p.setBrush(Qt::NoBrush);
-        p.setPen(pen);
-        p.drawEllipse(QRectF(8, 8, 8, 8));
         
-        p.setPen(QPen(p.brush().color(), 3, Qt::SolidLine, Qt::FlatCap));
-        // spokes
-        p.drawLine(12, 2, 12, 6);
-        p.drawLine(12, 18, 12, 22);
-        p.drawLine(2, 12, 6, 12);
-        p.drawLine(18, 12, 22, 12);
+        // Inner circle
+        p.setPen(QPen(color, 2.5, Qt::SolidLine, Qt::RoundCap));
+        p.drawEllipse(QRectF(9, 9, 6, 6));
         
-        p.drawLine(5, 5, 8, 8);
-        p.drawLine(19, 19, 16, 16);
-        p.drawLine(19, 5, 16, 8);
-        p.drawLine(5, 19, 8, 16);
+        // Emphasized gear spokes
+        p.setPen(QPen(color, 4.0, Qt::SolidLine, Qt::FlatCap));
+        p.drawLine(12, 3, 12, 6);
+        p.drawLine(12, 18, 12, 21);
+        p.drawLine(3, 12, 6, 12);
+        p.drawLine(18, 12, 21, 12);
+        
+        p.setPen(QPen(color, 3.5, Qt::SolidLine, Qt::FlatCap));
+        p.drawLine(6, 6, 8, 8);
+        p.drawLine(18, 18, 16, 16);
+        p.drawLine(18, 6, 16, 8);
+        p.drawLine(6, 18, 8, 16);
     }
 
     // Discord logo (simplified)
