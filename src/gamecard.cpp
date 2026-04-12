@@ -12,7 +12,7 @@
 GameCard::GameCard(QWidget* parent)
     : QWidget(parent)
 {
-    setFixedSize(170, 256);
+    setFixedSize(190, 285);
     setCursor(Qt::PointingHandCursor);
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 }

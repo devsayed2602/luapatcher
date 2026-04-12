@@ -8,6 +8,8 @@
 #include <QFile>
 #include <QDir>
 #include <QTimer>
+#include <QUrlQuery>
+#include <QDateTime>
 
 LuaDownloadWorker::LuaDownloadWorker(const QString& appId, QObject* parent)
     : QThread(parent)
@@ -20,12 +22,17 @@ void LuaDownloadWorker::run() {
         emit log("Starting patch process...", "INFO");
         emit status("Downloading patch...");
         
-        // Build URL
-        QString url = Config::luaFileUrl() + m_appId + ".lua";
+        // Build URL with timestamp to prevent caching
+        QString urlBase = Config::luaFileUrl() + m_appId + ".lua";
+        QUrl qurl{urlBase};
+        QUrlQuery query;
+        query.addQueryItem("_t", QString::number(QDateTime::currentMSecsSinceEpoch()));
+        qurl.setQuery(query);
+        
         QString cachePath = QDir(Paths::getLocalCacheDir()).filePath(m_appId + ".lua");
         
         emit log(QString("Target App ID: %1").arg(m_appId), "INFO");
-        emit log(QString("Download URL: %1").arg(url), "INFO");
+        emit log(QString("Download URL: %1").arg(qurl.toString()), "INFO");
         emit log(QString("Cache path: %1").arg(cachePath), "INFO");
         
         // Ensure cache directory exists
@@ -37,10 +44,12 @@ void LuaDownloadWorker::run() {
         
         emit log("Initializing network request...", "INFO");
         QNetworkAccessManager manager;
-        QUrl qurl{url};
         QNetworkRequest request{qurl};
+        QString token = Config::getAccessToken();
         request.setHeader(QNetworkRequest::UserAgentHeader, "SteamLuaPatcher/2.0");
-        request.setRawHeader("X-Access-Token", Config::getAccessToken().toUtf8());
+        request.setRawHeader("X-Access-Token", token.toUtf8());
+        request.setRawHeader("Authorization", ("Bearer " + token).toUtf8());
+        request.setRawHeader("Cache-Control", "no-cache");
         
         emit log("Connecting to server...", "INFO");
         QEventLoop loop;

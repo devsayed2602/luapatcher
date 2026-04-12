@@ -109,9 +109,13 @@ MainWindow::MainWindow(QWidget* parent)
     , m_nameFetchSearchId(0)
     , m_hasCachedData(false)
 {
+    // Retrieve username first so UI reflects it correctly (Avatar initial)
+    QSettings settings("LuaPatcher", "SteamLuaPatcher");
+    m_username = settings.value("username", "User").toString();
+
     setWindowTitle("Steam Lua Patcher");
     setMinimumSize(900, 600);
-    resize(1350, 820);
+    resize(1480, 900);
     setAcceptDrops(true);
     
     // ── Enable Transparency for Desktop Blur ──
@@ -126,10 +130,6 @@ MainWindow::MainWindow(QWidget* parent)
     
     // Apply Desktop Acrylic/Mica Blur
     enableAcrylicBlur();
-    
-    // Retrieve username from settings (already checked in main.cpp)
-    QSettings settings("LuaPatcher", "SteamLuaPatcher");
-    m_username = settings.value("username", "User").toString();
     
     m_debounceTimer = new QTimer(this);
     m_debounceTimer->setSingleShot(true);
@@ -561,7 +561,7 @@ void MainWindow::initUI() {
     for (QChar c : displayName) colorIdx += c.unicode();
     QColor avatarColor = avatarColors[colorIdx % 8];
     
-    int avatarSize = 36;
+    int avatarSize = 40;
     QPixmap avatarPix(avatarSize, avatarSize);
     avatarPix.fill(Qt::transparent);
     QPainter avatarPainter(&avatarPix);
@@ -570,7 +570,7 @@ void MainWindow::initUI() {
     avatarPainter.setPen(Qt::NoPen);
     avatarPainter.drawEllipse(0, 0, avatarSize, avatarSize);
     avatarPainter.setPen(Qt::white);
-    QFont avatarFont("Segoe UI", 15, QFont::Bold);
+    QFont avatarFont("Segoe UI", 18, QFont::Bold);
     avatarPainter.setFont(avatarFont);
     avatarPainter.drawText(QRect(0, 0, avatarSize, avatarSize), Qt::AlignCenter, QString(firstLetter));
     avatarPainter.end();
@@ -613,14 +613,14 @@ void MainWindow::initUI() {
     m_mainScrollContainer = new QWidget();
     m_mainScrollContainer->setStyleSheet("background: transparent;");
     m_mainScrollLayout = new QVBoxLayout(m_mainScrollContainer);
-    // Added horizontal padding (24px) so the banner and grid fit gracefully within the window bounds
-    m_mainScrollLayout->setContentsMargins(10, 0, 10, 20);
-    m_mainScrollLayout->setSpacing(16);
+    // Increased horizontal padding (15px) and spacing (10px) to perfectly fit the 175px game cards
+    m_mainScrollLayout->setContentsMargins(15, 0, 15, 20);
+    m_mainScrollLayout->setSpacing(10);
     
     // 1. Hero Stack — holds up to 4 trending games, shows exactly one at a time
     m_leadingTitlesLabel = new QLabel("Leading Titles");
     m_leadingTitlesLabel->setMaximumWidth(1200);
-    m_leadingTitlesLabel->setStyleSheet("font-size: 20px; font-weight: bold; padding-left: 4px; color: white;");
+    m_leadingTitlesLabel->setStyleSheet("font-size: 20px; font-weight: bold; padding-left: 0px; color: white;");
     
     m_heroStack = new QStackedWidget();
     m_heroStack->setFixedHeight(240);
@@ -655,13 +655,13 @@ void MainWindow::initUI() {
     
     // 3. All Games Grid
     m_gridTitleLabel = new QLabel("All Available Games");
-    m_gridTitleLabel->setStyleSheet("font-size: 20px; font-weight: bold; padding-left: 4px; color: white;");
+    m_gridTitleLabel->setStyleSheet("font-size: 20px; font-weight: bold; padding-left: 0px; color: white;");
     m_mainScrollLayout->addWidget(m_gridTitleLabel);
     
     m_gridContainer = new QWidget();
     m_gridLayout = new QGridLayout(m_gridContainer);
-    m_gridLayout->setContentsMargins(4, 4, 4, 4);
-    m_gridLayout->setSpacing(14);
+    m_gridLayout->setContentsMargins(0, 8, 0, 0); 
+    m_gridLayout->setSpacing(12); // Optimized for 190px cards
     m_gridLayout->setAlignment(Qt::AlignLeft | Qt::AlignTop);
     m_mainScrollLayout->addWidget(m_gridContainer);
     
