@@ -166,8 +166,8 @@ void MainWindow::enableAcrylicBlur() {
     DwmExtendFrameIntoClientArea(hwnd, &margins);
     
     // Step 2: Try Windows 11 system backdrop (DWMWA_SYSTEMBACKDROP_TYPE = 38)
-    // Value 3 = DWMSBT_TRANSIENTWINDOW (Acrylic), Value 2 = DWMSBT_MAINWINDOW (Mica)
-    int backdropType = 3;
+    // Value 2 = DWMSBT_MAINWINDOW (Mica) — same as File Explorer
+    int backdropType = 2;
     HRESULT hr = DwmSetWindowAttribute(hwnd, 38, &backdropType, sizeof(backdropType));
     
     // Step 3: If Win11 backdrop failed, use SetWindowCompositionAttribute (Win10 1803+)
@@ -192,7 +192,7 @@ void MainWindow::enableAcrylicBlur() {
                 ACCENT_POLICY policy = {};
                 policy.AccentState = 4; // ACCENT_ENABLE_ACRYLICBLURBEHIND
                 policy.AccentFlags = 2; // ACCENT_FLAG_DRAW_ALL
-                policy.GradientColor = 0x99191B21; // AABBGGRR — dark tint
+                policy.GradientColor = 0x66191B21; // AABBGGRR — lighter tint for subtle blur
                 
                 WINDOWCOMPOSITIONATTRIBDATA data = {};
                 data.Attrib = 19; // WCA_ACCENT_POLICY
@@ -266,9 +266,10 @@ void MainWindow::paintEvent(QPaintEvent* event) {
     painter.setRenderHint(QPainter::Antialiasing);
     
     // ── Semi-transparent dark background allowing desktop blur to show through ──
+    // Lower alpha = more see-through (like File Explorer's Mica effect)
     QLinearGradient bgGrad(0, 0, rect().width(), rect().height());
-    QColor color1(25, 27, 33); color1.setAlpha(170); // ~65% opacity
-    QColor color2(18, 19, 23); color2.setAlpha(170);
+    QColor color1(25, 27, 33); color1.setAlpha(115); // ~45% opacity — subtle like File Explorer
+    QColor color2(18, 19, 23); color2.setAlpha(115);
     bgGrad.setColorAt(0.0, color1);
     bgGrad.setColorAt(1.0, color2);
     painter.fillRect(rect(), bgGrad);
@@ -276,7 +277,7 @@ void MainWindow::paintEvent(QPaintEvent* event) {
     // ── Large warm orange/red ambient glow (top right, behind the banner) ──
     QRadialGradient glow1(rect().width() * 0.75, rect().height() * 0.2, rect().width() * 0.6);
     QColor warmRed(220, 60, 40); // vibrant orange-red
-    warmRed.setAlpha(35);
+    warmRed.setAlpha(20); // Reduced to match lighter background
     glow1.setColorAt(0, warmRed);
     glow1.setColorAt(0.5, QColor(warmRed.red(), warmRed.green(), warmRed.blue(), 15));
     glow1.setColorAt(1, QColor(0, 0, 0, 0));
@@ -285,7 +286,7 @@ void MainWindow::paintEvent(QPaintEvent* event) {
     // ── Subtle secondary glow (bottom left) ──
     QRadialGradient glow2(rect().width() * 0.2, rect().height() * 0.8, rect().width() * 0.5);
     QColor warmAmber(180, 100, 40);
-    warmAmber.setAlpha(20);
+    warmAmber.setAlpha(12); // Reduced to match lighter background
     glow2.setColorAt(0, warmAmber);
     glow2.setColorAt(1, QColor(0, 0, 0, 0));
     painter.fillRect(rect(), glow2);
