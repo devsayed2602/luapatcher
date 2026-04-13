@@ -322,36 +322,8 @@ void GameCard::paintEvent(QPaintEvent* event) {
         painter.drawRoundedRect(cardRect, radius, radius);
     }
 
-    // ── Supported badge ──
-    if (supported) {
-        painter.setClipPath(clipPath);
-
-        QRectF badgeRect(cardRect.right() - 30, cardRect.top() + 6, 24, 24);
-
-        // Material container background
-        QColor badgeColor = Colors::toQColor(Colors::ACCENT_GREEN);
-        QPainterPath badgePath;
-        badgePath.addRoundedRect(badgeRect, 6, 6); // Reduced from 12 for sharper corners
-        painter.fillPath(badgePath, badgeColor);
-
-        // Check icon
-        QRectF checkRect = badgeRect.adjusted(4, 4, -4, -4);
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(Qt::NoBrush);
-
-        QPen checkPen(QColor("#FFFFFF"), 2.2);
-        checkPen.setCapStyle(Qt::RoundCap);
-        checkPen.setJoinStyle(Qt::RoundJoin);
-        painter.setPen(checkPen);
-
-        QPainterPath check;
-        check.moveTo(checkRect.left() + 1, checkRect.center().y());
-        check.lineTo(checkRect.center().x() - 1, checkRect.bottom() - 2);
-        check.lineTo(checkRect.right() - 1, checkRect.top() + 2);
-        painter.drawPath(check);
-
-        painter.setClipRect(rect());
-    }
+    // Reset clip for border drawing
+    painter.setClipRect(rect());
 }
 
 void GameCard::mousePressEvent(QMouseEvent* event) {

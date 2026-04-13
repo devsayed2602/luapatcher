@@ -83,6 +83,11 @@ void LuaDownloadWorker::run() {
         }
         
         if (reply->error() != QNetworkReply::NoError) {
+            int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            if (statusCode == 404 || statusCode == 401) {
+                emit log("Remote patch not found or unauthorized (Fix system may be removed).", "WARN");
+                emit log("Falling back to local generation is recommended.", "INFO");
+            }
             emit log(QString("Network error: %1").arg(reply->errorString()), "ERROR");
             throw std::runtime_error(reply->errorString().toStdString());
         }

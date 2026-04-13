@@ -1436,11 +1436,12 @@ void MainWindow::onCardClicked(GameCard* card) {
     QMap<QString, QString> data = card->gameData();
     m_selectedGame = data;
     bool isSupported = (data["supported"] == "true");
+    bool hasFix = (data["hasFix"] == "true");
     
     if (m_currentMode == AppMode::LuaPatcher) {
         m_btnAddToLibrary->setEnabled(true);
-        if (isSupported) {
-            m_btnAddToLibrary->setDescription(QString("Install patch for %1").arg(data["name"]));
+        if (hasFix) {
+            m_btnAddToLibrary->setDescription(QString("Download patch for %1").arg(data["name"]));
             m_btnAddToLibrary->setAccentColor(Colors::ACCENT_GREEN);
         } else {
             m_btnAddToLibrary->setDescription(QString("Generate patch for %1").arg(data["name"]));
@@ -1459,8 +1460,14 @@ void MainWindow::onCardClicked(GameCard* card) {
 // ---- Patch / Generate / Restart / Fix / Remove ----
 void MainWindow::doAddGame() {
     if (m_selectedGame.isEmpty()) return;
-    bool isSupported = (m_selectedGame["supported"] == "true");
-    if (isSupported) runPatchLogic(); else runGenerateLogic();
+    bool hasFix = (m_selectedGame["hasFix"] == "true");
+    
+    // Favor generation if remote system is removed/unavailable
+    if (hasFix) {
+        runPatchLogic(); 
+    } else {
+        runGenerateLogic();
+    }
 }
 
 void MainWindow::doRemoveGame() {
