@@ -4,3 +4,5 @@ package-lock.json
 node_modules/
 netlify/
 netlify.toml
+# Skip loose game files - server reads from games.zip instead
+games/
