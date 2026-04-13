@@ -166,8 +166,8 @@ void MainWindow::enableAcrylicBlur() {
     DwmExtendFrameIntoClientArea(hwnd, &margins);
     
     // Step 2: Try Windows 11 system backdrop (DWMWA_SYSTEMBACKDROP_TYPE = 38)
-    // Value 2 = DWMSBT_MAINWINDOW (Mica) — same as File Explorer
-    int backdropType = 2;
+    // Value 3 = DWMSBT_TRANSIENTWINDOW (Acrylic — see-through blur)
+    int backdropType = 3;
     HRESULT hr = DwmSetWindowAttribute(hwnd, 38, &backdropType, sizeof(backdropType));
     
     // Step 3: If Win11 backdrop failed, use SetWindowCompositionAttribute (Win10 1803+)
@@ -192,7 +192,7 @@ void MainWindow::enableAcrylicBlur() {
                 ACCENT_POLICY policy = {};
                 policy.AccentState = 4; // ACCENT_ENABLE_ACRYLICBLURBEHIND
                 policy.AccentFlags = 2; // ACCENT_FLAG_DRAW_ALL
-                policy.GradientColor = 0x66191B21; // AABBGGRR — lighter tint for subtle blur
+                policy.GradientColor = 0x33191B21; // AABBGGRR — very light tint, mostly see-through
                 
                 WINDOWCOMPOSITIONATTRIBDATA data = {};
                 data.Attrib = 19; // WCA_ACCENT_POLICY
@@ -266,10 +266,10 @@ void MainWindow::paintEvent(QPaintEvent* event) {
     painter.setRenderHint(QPainter::Antialiasing);
     
     // ── Semi-transparent dark background allowing desktop blur to show through ──
-    // Lower alpha = more see-through (like File Explorer's Mica effect)
+    // Very low alpha = see-through window (like File Explorer)
     QLinearGradient bgGrad(0, 0, rect().width(), rect().height());
-    QColor color1(25, 27, 33); color1.setAlpha(115); // ~45% opacity — subtle like File Explorer
-    QColor color2(18, 19, 23); color2.setAlpha(115);
+    QColor color1(25, 27, 33); color1.setAlpha(60); // ~24% opacity — very see-through
+    QColor color2(18, 19, 23); color2.setAlpha(60);
     bgGrad.setColorAt(0.0, color1);
     bgGrad.setColorAt(1.0, color2);
     painter.fillRect(rect(), bgGrad);
