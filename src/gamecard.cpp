@@ -19,6 +19,16 @@ GameCard::GameCard(QWidget* parent)
 
 void GameCard::setGameData(const QMap<QString, QString>& data) {
     m_data = data;
+    // Auto-start shimmer animation if no thumbnail yet
+    if (!m_hasThumbnail && !m_isSkeleton && !data.isEmpty()) {
+        if (!m_skeletonTimer) {
+            m_skeletonTimer = new QTimer(this);
+            connect(m_skeletonTimer, &QTimer::timeout, this, &GameCard::updateSkeletonPulse);
+        }
+        m_skeletonPulse = 0.0;
+        m_pulseIncreasing = true;
+        m_skeletonTimer->start(30);
+    }
     update();
 }
 
@@ -29,7 +39,12 @@ QMap<QString, QString> GameCard::gameData() const {
 void GameCard::setThumbnail(const QPixmap& pixmap) {
     m_thumbnail = pixmap;
     m_hasThumbnail = !pixmap.isNull();
-    if (m_hasThumbnail) extractDominantColor(pixmap);
+    if (m_hasThumbnail) {
+        extractDominantColor(pixmap);
+        // Stop shimmer animation — real image arrived
+        if (m_skeletonTimer) m_skeletonTimer->stop();
+        m_skeletonPulse = 0.0;
+    }
     update();
 }
 
@@ -219,26 +234,31 @@ void GameCard::paintEvent(QPaintEvent* event) {
         int sx = (scaled.width() - cardSize.width()) / 2;
         int sy = (scaled.height() - cardSize.height()) / 2;
         painter.drawPixmap(cardRect.toRect(), scaled, QRect(sx, sy, cardSize.width(), cardSize.height()));
+    } else if (!m_data.isEmpty()) {
+        // No thumbnail yet — show skeleton shimmer instead of static gamepad icon
+        QColor baseColor = Colors::toQColor(Colors::SURFACE_CONTAINER_HIGH);
+        QColor pulseColor = Colors::toQColor(Colors::SURFACE_CONTAINER_HIGHEST);
+
+        // Animate pulse if timer is running, otherwise use static base
+        qreal pulse = m_skeletonPulse;
+        int r = baseColor.red() + (pulseColor.red() - baseColor.red()) * pulse;
+        int g = baseColor.green() + (pulseColor.green() - baseColor.green()) * pulse;
+        int b = baseColor.blue() + (pulseColor.blue() - baseColor.blue()) * pulse;
+        QColor activeColor(r, g, b);
+        painter.fillRect(cardRect.toRect(), activeColor);
+
+        // Animated shimmer sweep across the card
+        qreal sweepPos = m_skeletonPulse;
+        QLinearGradient shimmer(cardRect.left() + cardRect.width() * (sweepPos - 0.3), cardRect.top(),
+                                cardRect.left() + cardRect.width() * (sweepPos + 0.3), cardRect.bottom());
+        shimmer.setColorAt(0, QColor(255, 255, 255, 0));
+        shimmer.setColorAt(0.5, QColor(255, 255, 255, 18));
+        shimmer.setColorAt(1, QColor(255, 255, 255, 0));
+        painter.fillRect(cardRect.toRect(), shimmer);
     } else {
-        // Material surface container background
+        // Truly empty card — dark surface
         QColor surfaceColor = Colors::toQColor(Colors::SURFACE_CONTAINER_HIGH);
         painter.fillRect(cardRect.toRect(), surfaceColor);
-
-        // Subtle tonal overlay
-        QRadialGradient glow(cardRect.center(), cardRect.height() * 0.6);
-        glow.setColorAt(0, QColor(255, 255, 255, 15)); // Soft bright tint for glass
-        glow.setColorAt(1, QColor(255, 255, 255, 0));
-        painter.fillRect(cardRect.toRect(), glow);
-
-        // Gamepad icon placeholder
-        QRectF iconArea(
-            cardRect.center().x() - 28,
-            cardRect.center().y() - 40,
-            56, 56
-        );
-        QColor iconColor = Colors::toQColor(Colors::ON_SURFACE_VARIANT);
-        iconColor.setAlpha(60);
-        MaterialIcons::draw(painter, iconArea, iconColor, MaterialIcons::Gamepad);
     }
 
     // ── Bottom info area ──

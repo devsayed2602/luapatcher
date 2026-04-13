@@ -827,30 +827,87 @@ void MainWindow::displayRandomGames() {
         imgLabel->setScaledContents(true);
         stack->addWidget(imgLabel);
         
+        // Dark gradient overlay (left-to-right for portrait+text layout)
         QWidget* overlay = new QWidget();
         overlay->setFixedHeight(240);
         overlay->setStyleSheet(
-            "background: qlineargradient(x1:0, y1:1, x2:0, y2:0, stop:0 rgba(0,0,0,220), stop:0.4 rgba(0,0,0,0));"
+            "background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 rgba(0,0,0,210), stop:0.55 rgba(0,0,0,120), stop:1 rgba(0,0,0,30));"
             "border-radius: 12px;"
         );
-        QVBoxLayout* overlayLayout = new QVBoxLayout(overlay);
-        overlayLayout->addStretch(1);
+        
+        // Horizontal layout: portrait on left, text info on right
+        QHBoxLayout* heroLayout = new QHBoxLayout(overlay);
+        heroLayout->setContentsMargins(20, 15, 20, 15);
+        heroLayout->setSpacing(24);
+        
+        // Portrait thumbnail (left side)
+        QLabel* portraitLabel = new QLabel();
+        portraitLabel->setFixedSize(130, 200);
+        portraitLabel->setStyleSheet(
+            "background: rgba(255,255,255,8); border: 1px solid rgba(255,255,255,15); border-radius: 8px;"
+        );
+        portraitLabel->setScaledContents(true);
+        heroLayout->addWidget(portraitLabel);
+        
+        // Game info column
+        QVBoxLayout* infoLayout = new QVBoxLayout();
+        infoLayout->setSpacing(6);
+        infoLayout->addStretch(1);
+        
+        QLabel* badgeLbl = new QLabel(QString::fromUtf8("\xe2\x98\x85 FEATURED"));
+        badgeLbl->setStyleSheet(
+            "font-size: 11px; font-weight: 700; color: #FFB74D; letter-spacing: 2px;"
+            " background: transparent; border: none; font-family: 'Roboto', 'Segoe UI';"
+        );
+        infoLayout->addWidget(badgeLbl);
         
         QLabel* nameLbl = new QLabel(featuredName);
-        nameLbl->setStyleSheet("font-size: 26px; font-weight: bold; color: white; background: transparent; border: none;");
-        nameLbl->setAlignment(Qt::AlignHCenter);
-        overlayLayout->addWidget(nameLbl);
+        nameLbl->setStyleSheet(
+            "font-size: 26px; font-weight: bold; color: white; background: transparent; border: none;"
+            " font-family: 'Roboto', 'Segoe UI';"
+        );
+        nameLbl->setWordWrap(true);
+        infoLayout->addWidget(nameLbl);
         
         QLabel* idLbl = new QLabel(QString("App ID: %1").arg(featuredId));
-        idLbl->setStyleSheet("font-size: 14px; color: #aaaaaa; background: transparent; border: none;");
-        idLbl->setAlignment(Qt::AlignHCenter);
-        overlayLayout->addWidget(idLbl);
-        overlayLayout->addSpacing(15);
+        idLbl->setStyleSheet(
+            "font-size: 13px; color: rgba(255,255,255,140); background: transparent; border: none;"
+            " font-family: 'Roboto', 'Segoe UI';"
+        );
+        infoLayout->addWidget(idLbl);
+        infoLayout->addStretch(1);
+        
+        heroLayout->addLayout(infoLayout, 1);
         
         stack->addWidget(overlay);
         m_heroStack->addWidget(slide);
         
-        // Fetch high-quality hero image, with fallback to low-res header
+        // Fetch portrait thumbnail for left side
+        QString portraitUrl = QString("https://cdn.akamai.steamstatic.com/steam/apps/%1/library_600x900_2x.jpg").arg(featuredId);
+        QNetworkRequest portraitReq{QUrl(portraitUrl)};
+        portraitReq.setHeader(QNetworkRequest::UserAgentHeader, "SteamLuaPatcher/2.0");
+        QNetworkReply* portraitReply = m_networkManager->get(portraitReq);
+        QPointer<QLabel> safePortrait(portraitLabel);
+        connect(portraitReply, &QNetworkReply::finished, this, [portraitReply, safePortrait]() {
+            portraitReply->deleteLater();
+            if (portraitReply->error() == QNetworkReply::NoError && safePortrait) {
+                QPixmap rawPix;
+                if (rawPix.loadFromData(portraitReply->readAll())) {
+                    QPixmap rounded(130, 200);
+                    rounded.fill(Qt::transparent);
+                    QPainter p(&rounded);
+                    p.setRenderHint(QPainter::Antialiasing);
+                    QPainterPath clipPath;
+                    clipPath.addRoundedRect(rounded.rect(), 8, 8);
+                    p.setClipPath(clipPath);
+                    p.drawPixmap(rounded.rect(), rawPix.scaled(130, 200, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+                    p.end();
+                    if (safePortrait) safePortrait->setPixmap(rounded);
+                }
+            }
+        });
+        
+        // Fetch high-quality hero image for background, with fallback to low-res header
         QString heroUrl = QString("https://cdn.akamai.steamstatic.com/steam/apps/%1/library_hero.jpg").arg(featuredId);
         QNetworkRequest req{QUrl(heroUrl)};
         req.setHeader(QNetworkRequest::UserAgentHeader, "SteamLuaPatcher/2.0");
@@ -864,13 +921,12 @@ void MainWindow::displayRandomGames() {
             if (heroReply->error() == QNetworkReply::NoError && safeImgLabel) {
                 QPixmap rawPix;
                 if (rawPix.loadFromData(heroReply->readAll())) {
-                    // Create rounded version to ensure corners aren't sharp
                     QPixmap rounded(rawPix.size());
                     rounded.fill(Qt::transparent);
                     QPainter painter(&rounded);
                     painter.setRenderHint(QPainter::Antialiasing);
                     QPainterPath path;
-                    path.addRoundedRect(rounded.rect(), 35, 35); // Visual radius for the raw buffer
+                    path.addRoundedRect(rounded.rect(), 35, 35);
                     painter.setClipPath(path);
                     painter.drawPixmap(0, 0, rawPix);
                     
@@ -878,7 +934,6 @@ void MainWindow::displayRandomGames() {
                     success = true;
                 }
             }
-            // Fallback strategy if HD library hero is missing (fetch low-res header)
             if (!success && safeImgLabel && nm) {
                 QString fallbackUrl = QString("https://cdn.akamai.steamstatic.com/steam/apps/%1/header.jpg").arg(featuredId);
                 QNetworkRequest fallbackReq{QUrl(fallbackUrl)};
