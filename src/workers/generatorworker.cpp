@@ -24,7 +24,9 @@ void GeneratorWorker::run() {
         emit status("Fetching game data...");
         
         // Build URL
-        QString url = QString("https://crackworld.vercel.app/api/free-download?appid=%1&user=luamanifest").arg(m_appId);
+        QString url = QString("%1/api/free-download?appid=%2&user=luamanifest")
+            .arg(Config::WEBSERVER_BASE_URL)
+            .arg(m_appId);
         QString cacheDirStr = Paths::getLocalCacheDir();
         QString archivePath = QDir(cacheDirStr).filePath(m_appId + "_gen.zip");
         QString extractDir = QDir(cacheDirStr).filePath(m_appId + "_gen");
