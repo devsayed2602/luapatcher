@@ -162,8 +162,18 @@ void GlassButton::paintEvent(QPaintEvent* event) {
     int iconSize = isCompact ? 20 : 24;
     int padding = isCompact ? 10 : 14;
     
-    QRectF iconBgRect(padding, (h - (isCompact ? 30 : 36)) / 2.0,
-                      isCompact ? 30 : 36, isCompact ? 30 : 36);
+    // If width is narrow (collapsible sidebar), center the icon
+    bool isNarrow = r.width() < 100;
+    
+    QRectF iconBgRect;
+    if (isNarrow) {
+        iconBgRect = QRectF((r.width() - (isCompact ? 30 : 36)) / 2.0,
+                            (h - (isCompact ? 30 : 36)) / 2.0,
+                            isCompact ? 30 : 36, isCompact ? 30 : 36);
+    } else {
+        iconBgRect = QRectF(padding, (h - (isCompact ? 30 : 36)) / 2.0,
+                            isCompact ? 30 : 36, isCompact ? 30 : 36);
+    }
     
     // Icon background: rounded container with accent color
     QColor iconBgColor(m_accentColor);
@@ -191,33 +201,35 @@ void GlassButton::paintEvent(QPaintEvent* event) {
     MaterialIcons::draw(painter, iconDrawRect, iconColor, m_icon);
     
     // ── Text ──
-    int textX = padding + iconBgRect.width() + (isCompact ? 10 : 14);
-    int textW = r.width() - textX - 8;
-    
-    QColor textColor = m_isActive
-        ? Colors::currentTheme.primary
-        : Colors::toQColor(Colors::ON_SURFACE);
-    painter.setPen(textColor);
-    
-    if (isCompact || m_descText.isEmpty()) {
-        QRectF titleRect(textX, 0, textW, h);
-        QFont titleFont("Roboto", isCompact ? 9 : 10, QFont::DemiBold);
-        titleFont.setStyleStrategy(QFont::PreferAntialias);
-        painter.setFont(titleFont);
-        painter.drawText(titleRect, Qt::AlignLeft | Qt::AlignVCenter, m_titleText.trimmed());
-    } else {
-        int titleY = (h / 2) - 10;
-        QRectF titleRect(textX, titleY - 2, textW, 20);
-        QFont titleFont("Roboto", 10, QFont::DemiBold);
-        titleFont.setStyleStrategy(QFont::PreferAntialias);
-        painter.setFont(titleFont);
-        painter.drawText(titleRect, Qt::AlignLeft | Qt::AlignVCenter, m_titleText);
+    if (!isNarrow) {
+        int textX = padding + iconBgRect.width() + (isCompact ? 10 : 14);
+        int textW = r.width() - textX - 8;
         
-        QRectF descRect(textX, titleY + 18, textW, 16);
-        painter.setPen(Colors::toQColor(Colors::ON_SURFACE_VARIANT));
-        QFont descFont("Roboto", 8);
-        descFont.setStyleStrategy(QFont::PreferAntialias);
-        painter.setFont(descFont);
-        painter.drawText(descRect, Qt::AlignLeft | Qt::AlignVCenter, m_descText);
+        QColor textColor = m_isActive
+            ? Colors::currentTheme.primary
+            : Colors::toQColor(Colors::ON_SURFACE);
+        painter.setPen(textColor);
+        
+        if (isCompact || m_descText.isEmpty()) {
+            QRectF titleRect(textX, 0, textW, h);
+            QFont titleFont("Roboto", isCompact ? 9 : 10, QFont::DemiBold);
+            titleFont.setStyleStrategy(QFont::PreferAntialias);
+            painter.setFont(titleFont);
+            painter.drawText(titleRect, Qt::AlignLeft | Qt::AlignVCenter, m_titleText.trimmed());
+        } else {
+            int titleY = (h / 2) - 10;
+            QRectF titleRect(textX, titleY - 2, textW, 20);
+            QFont titleFont("Roboto", 10, QFont::DemiBold);
+            titleFont.setStyleStrategy(QFont::PreferAntialias);
+            painter.setFont(titleFont);
+            painter.drawText(titleRect, Qt::AlignLeft | Qt::AlignVCenter, m_titleText);
+            
+            QRectF descRect(textX, titleY + 18, textW, 16);
+            painter.setPen(Colors::toQColor(Colors::ON_SURFACE_VARIANT));
+            QFont descFont("Roboto", 8);
+            descFont.setStyleStrategy(QFont::PreferAntialias);
+            painter.setFont(descFont);
+            painter.drawText(descRect, Qt::AlignLeft | Qt::AlignVCenter, m_descText);
+        }
     }
 }

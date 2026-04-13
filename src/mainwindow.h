@@ -23,6 +23,8 @@ class GameCard;
 #include "utils/gameinfo.h"
 #include "terminaldialog.h"
 
+class GameDetailsPage;
+
 class LoadingSpinner;
 class IndexDownloadWorker;
 
@@ -71,6 +73,14 @@ private slots:
     void updateModeUI();
     void processNextNameFetch();
     void loadVisibleThumbnails();
+
+    // Game Details
+    void onGameDetailsBack();
+    void onInstallFromDetails(const QString& appId, const QString& name, bool hasFix);
+
+    // Sidebar
+    void expandSidebar();
+    void collapseSidebarDelayed();
 
 private:
     void initUI();
@@ -135,6 +145,15 @@ private:
     GlassButton* m_btnRemove;
     GlassButton* m_btnRestart;
     TerminalDialog* m_terminalDialog;
+
+    // Details Page
+    GameDetailsPage* m_gameDetailsPage;
+
+    // Sidebar
+    QWidget* m_sidebarWidget;
+    bool m_sidebarExpanded = false;
+    QPropertyAnimation* m_sidebarAnimation;
+    QTimer* m_sidebarCollapseTimer;
 
     // Data
     QList<GameInfo> m_supportedGames;

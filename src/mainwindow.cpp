@@ -2,6 +2,7 @@
 #include "glassbutton.h"
 #include "gamecard.h"
 #include "loadingspinner.h"
+#include "gamedetailspage.h"
 #include "materialicons.h"
 #include "workers/indexdownloadworker.h"
 #include "workers/luadownloadworker.h"
@@ -229,19 +230,98 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
                 }
             }
         }
+    } else if (obj == m_sidebarWidget) {
+        if (event->type() == QEvent::Enter) {
+            expandSidebar();
+        } else if (event->type() == QEvent::Leave) {
+            m_sidebarCollapseTimer->start(150);
+        }
     }
     return QMainWindow::eventFilter(obj, event);
 }
 
+void MainWindow::expandSidebar() {
+    m_sidebarCollapseTimer->stop();
+    if (m_sidebarExpanded) return;
+    
+    m_sidebarExpanded = true;
+    m_sidebarAnimation->stop();
+    auto fwEffect = new QPropertyAnimation(m_sidebarWidget, "maximumWidth", this);
+    fwEffect->setDuration(200);
+    fwEffect->setEndValue(230);
+    fwEffect->setEasingCurve(QEasingCurve::OutCubic);
+    
+    m_sidebarAnimation->setEndValue(230);
+    m_sidebarAnimation->setEasingCurve(QEasingCurve::OutCubic);
+    
+    fwEffect->start(QAbstractAnimation::DeleteWhenStopped);
+    m_sidebarAnimation->start();
+}
+
+void MainWindow::collapseSidebarDelayed() {
+    if (!m_sidebarExpanded) return;
+    
+    m_sidebarExpanded = false;
+    m_sidebarAnimation->stop();
+    
+    auto fwEffect = new QPropertyAnimation(m_sidebarWidget, "maximumWidth", this);
+    fwEffect->setDuration(200);
+    fwEffect->setEndValue(60);
+    fwEffect->setEasingCurve(QEasingCurve::InCubic);
+    
+    m_sidebarAnimation->setEndValue(60);
+    m_sidebarAnimation->setEasingCurve(QEasingCurve::InCubic);
+    
+    fwEffect->start(QAbstractAnimation::DeleteWhenStopped);
+    m_sidebarAnimation->start();
+}
+
 void MainWindow::scrollCarousel() {
     if (m_heroStack->count() == 0 || !m_heroStack->isVisible()) return;
+    
+    int oldIndex = m_currentHeroIndex;
     m_currentHeroIndex++;
     if (m_currentHeroIndex >= m_heroStack->count()) {
         m_currentHeroIndex = 0;
     }
     
-    // Crossfade to the next banner
+    QWidget* oldSlide = m_heroStack->widget(oldIndex);
+    QWidget* newSlide = m_heroStack->widget(m_currentHeroIndex);
+    
+    // Set up opacity effects for crossfade
+    auto* fadeOutEffect = new QGraphicsOpacityEffect(oldSlide);
+    fadeOutEffect->setOpacity(1.0);
+    oldSlide->setGraphicsEffect(fadeOutEffect);
+    
+    auto* fadeInEffect = new QGraphicsOpacityEffect(newSlide);
+    fadeInEffect->setOpacity(0.0);
+    newSlide->setGraphicsEffect(fadeInEffect);
+    
+    // Switch to new slide (it's invisible at opacity 0)
     m_heroStack->setCurrentIndex(m_currentHeroIndex);
+    
+    // Animate fade-out of old slide
+    auto* fadeOut = new QPropertyAnimation(fadeOutEffect, "opacity", this);
+    fadeOut->setDuration(400);
+    fadeOut->setStartValue(1.0);
+    fadeOut->setEndValue(0.0);
+    fadeOut->setEasingCurve(QEasingCurve::InOutQuad);
+    connect(fadeOut, &QPropertyAnimation::finished, [oldSlide]() {
+        oldSlide->setGraphicsEffect(nullptr); // Clean up
+    });
+    
+    // Animate fade-in of new slide
+    auto* fadeIn = new QPropertyAnimation(fadeInEffect, "opacity", this);
+    fadeIn->setDuration(400);
+    fadeIn->setStartValue(0.0);
+    fadeIn->setEndValue(1.0);
+    fadeIn->setEasingCurve(QEasingCurve::InOutQuad);
+    connect(fadeIn, &QPropertyAnimation::finished, [newSlide]() {
+        newSlide->setGraphicsEffect(nullptr); // Clean up
+    });
+    
+    fadeOut->start(QAbstractAnimation::DeleteWhenStopped);
+    fadeIn->start(QAbstractAnimation::DeleteWhenStopped);
 }
 
 void MainWindow::updateAmbientGlow() {
@@ -352,18 +432,38 @@ void MainWindow::initUI() {
     rootLayout->setSpacing(0);
     
     // ──── Material Navigation Rail (Sidebar) ────
-    QWidget* sidebarWidget = new QWidget();
-    sidebarWidget->setFixedWidth(230);
-    sidebarWidget->setAttribute(Qt::WA_StyledBackground);
-    sidebarWidget->setAutoFillBackground(false);
-    sidebarWidget->setStyleSheet(QString(
+    m_sidebarWidget = new QWidget();
+    m_sidebarWidget->setFixedWidth(60); // Starts collapsed
+    m_sidebarWidget->setAttribute(Qt::WA_StyledBackground);
+    m_sidebarWidget->setAutoFillBackground(false);
+    m_sidebarWidget->setStyleSheet(QString(
         "background-color: transparent; border-right: 1px solid rgba(255, 255, 255, 10);"
     ));
+    m_sidebarWidget->installEventFilter(this);
     
-    QVBoxLayout* sidebarLayout = new QVBoxLayout(sidebarWidget);
-    sidebarLayout->setContentsMargins(16, 24, 16, 16);
-    sidebarLayout->setSpacing(8);
+    // Animation setup
+    m_sidebarAnimation = new QPropertyAnimation(m_sidebarWidget, "minimumWidth", this);
+    m_sidebarAnimation->setDuration(200);
+    m_sidebarAnimation->setEasingCurve(QEasingCurve::InOutQuad);
     
+    m_sidebarCollapseTimer = new QTimer(this);
+    m_sidebarCollapseTimer->setSingleShot(true);
+    connect(m_sidebarCollapseTimer, &QTimer::timeout, this, &MainWindow::collapseSidebarDelayed);
+    
+    // Inner container so contents don't squeeze when narrow, they just clip
+    QWidget* sidebarInner = new QWidget();
+    sidebarInner->setFixedWidth(230);
+    sidebarInner->setStyleSheet("background: transparent; border: none;");
+    
+    QVBoxLayout* sidebarInnerLayout = new QVBoxLayout(sidebarInner);
+    sidebarInnerLayout->setContentsMargins(10, 24, 16, 16);
+    sidebarInnerLayout->setSpacing(8);
+    
+    QVBoxLayout* sidebarOuterLayout = new QVBoxLayout(m_sidebarWidget);
+    sidebarOuterLayout->setContentsMargins(0, 0, 0, 0);
+    sidebarOuterLayout->setAlignment(Qt::AlignLeft);
+    sidebarOuterLayout->addWidget(sidebarInner);
+
     // ── App header with actual logo ──
     QHBoxLayout* headerLayout = new QHBoxLayout();
     headerLayout->setSpacing(12);
@@ -389,8 +489,8 @@ void MainWindow::initUI() {
     ).arg(Colors::ON_SURFACE));
     headerLayout->addWidget(title);
     headerLayout->addStretch();
-    sidebarLayout->addLayout(headerLayout);
-    sidebarLayout->addSpacing(20);
+    sidebarInnerLayout->addLayout(headerLayout);
+    sidebarInnerLayout->addSpacing(20);
     
     // ── Section label ──
     QLabel* navLabel = new QLabel("NAVIGATION");
@@ -398,43 +498,43 @@ void MainWindow::initUI() {
         "font-size: 10px; font-weight: 600; color: %1; letter-spacing: 1px;"
         " background: transparent; border: none; padding-left: 4px; font-family: 'Roboto', 'Segoe UI';"
     ).arg(Colors::OUTLINE));
-    sidebarLayout->addWidget(navLabel);
-    sidebarLayout->addSpacing(4);
+    sidebarInnerLayout->addWidget(navLabel);
+    sidebarInnerLayout->addSpacing(4);
     
     // Navigation tabs
     m_tabLua = new GlassButton(MaterialIcons::Download, " App Store", "", Colors::PRIMARY);
     m_tabLua->setFixedHeight(44);
     connect(m_tabLua, &QPushButton::clicked, this, [this](){ switchMode(AppMode::LuaPatcher); });
-    sidebarLayout->addWidget(m_tabLua);
+    sidebarInnerLayout->addWidget(m_tabLua);
 
     m_tabLibrary = new GlassButton(MaterialIcons::Library, " Library", "", Colors::ACCENT_GREEN);
     m_tabLibrary->setFixedHeight(44);
     connect(m_tabLibrary, &QPushButton::clicked, this, [this](){ switchMode(AppMode::Library); });
-    sidebarLayout->addWidget(m_tabLibrary);
+    sidebarInnerLayout->addWidget(m_tabLibrary);
     
-    sidebarLayout->addSpacing(8);
+    sidebarInnerLayout->addSpacing(8);
     
     m_tabSettings = new GlassButton(MaterialIcons::Settings, " Settings", "", Colors::OUTLINE);
     m_tabSettings->setFixedHeight(44);
     connect(m_tabSettings, &QPushButton::clicked, this, [this](){ switchMode(AppMode::Settings); });
-    sidebarLayout->addWidget(m_tabSettings);
+    sidebarInnerLayout->addWidget(m_tabSettings);
     
     m_tabDiscord = new GlassButton(MaterialIcons::Discord, " Discord", "", Colors::ACCENT_BLUE);
     m_tabDiscord->setFixedHeight(44);
     connect(m_tabDiscord, &QPushButton::clicked, this, [this](){
         QDesktopServices::openUrl(QUrl("https://discord.gg/your-server"));
     });
-    sidebarLayout->addWidget(m_tabDiscord);
+    sidebarInnerLayout->addWidget(m_tabDiscord);
     
-    sidebarLayout->addSpacing(8);
+    sidebarInnerLayout->addSpacing(8);
     
     // Material divider
     QFrame* line = new QFrame();
     line->setFrameShape(QFrame::HLine);
     line->setFixedHeight(1);
     line->setStyleSheet(QString("background: %1; border: none;").arg(Colors::OUTLINE_VARIANT));
-    sidebarLayout->addWidget(line);
-    sidebarLayout->addSpacing(4);
+    sidebarInnerLayout->addWidget(line);
+    sidebarInnerLayout->addSpacing(4);
     
     m_statusLabel = new QLabel("Initializing...");
     m_statusLabel->setStyleSheet(QString(
@@ -442,9 +542,9 @@ void MainWindow::initUI() {
     ).arg(Colors::ON_SURFACE_VARIANT));
     m_statusLabel->setWordWrap(true);
     // Removed status label from sidebar as requested by user
-    // sidebarLayout->addWidget(m_statusLabel);
+    // sidebarInnerLayout->addWidget(m_statusLabel);
     
-    sidebarLayout->addStretch();
+    sidebarInnerLayout->addStretch();
     
     // ── Section label for actions ──
     QLabel* actionsLabel = new QLabel("ACTIONS");
@@ -452,37 +552,37 @@ void MainWindow::initUI() {
         "font-size: 10px; font-weight: 600; color: %1; letter-spacing: 1px;"
         " background: transparent; border: none; padding-left: 4px; font-family: 'Roboto', 'Segoe UI';"
     ).arg(Colors::OUTLINE));
-    sidebarLayout->addWidget(actionsLabel);
-    sidebarLayout->addSpacing(4);
+    sidebarInnerLayout->addWidget(actionsLabel);
+    sidebarInnerLayout->addSpacing(4);
     
     // Action buttons
     m_btnAddToLibrary = new GlassButton(MaterialIcons::Add, "Add to Library", "Install / Generate Patch", Colors::ACCENT_GREEN);
     m_btnAddToLibrary->setFixedHeight(52);
     m_btnAddToLibrary->setEnabled(false);
     connect(m_btnAddToLibrary, &QPushButton::clicked, this, &MainWindow::doAddGame);
-    sidebarLayout->addWidget(m_btnAddToLibrary);
+    sidebarInnerLayout->addWidget(m_btnAddToLibrary);
 
     m_btnRemove = new GlassButton(MaterialIcons::Delete, "Remove", "Remove from Library", Colors::ACCENT_RED);
     m_btnRemove->setFixedHeight(52);
     m_btnRemove->setEnabled(false);
     m_btnRemove->hide();
     connect(m_btnRemove, &QPushButton::clicked, this, &MainWindow::doRemoveGame);
-    sidebarLayout->addWidget(m_btnRemove);
+    sidebarInnerLayout->addWidget(m_btnRemove);
     
-    sidebarLayout->addSpacing(6);
+    sidebarInnerLayout->addSpacing(6);
     m_btnRestart = new GlassButton(MaterialIcons::RestartAlt, "Restart Steam", "Apply Changes", Colors::PRIMARY);
     m_btnRestart->setFixedHeight(52);
     connect(m_btnRestart, &QPushButton::clicked, this, &MainWindow::doRestart);
-    sidebarLayout->addWidget(m_btnRestart);
-    sidebarLayout->addSpacing(12);
+    sidebarInnerLayout->addWidget(m_btnRestart);
+    sidebarInnerLayout->addSpacing(12);
     
     // Divider before version info
     QFrame* line2 = new QFrame();
     line2->setFrameShape(QFrame::HLine);
     line2->setFixedHeight(1);
     line2->setStyleSheet(QString("background: %1; border: none;").arg(Colors::OUTLINE_VARIANT));
-    sidebarLayout->addWidget(line2);
-    sidebarLayout->addSpacing(8);
+    sidebarInnerLayout->addWidget(line2);
+    sidebarInnerLayout->addSpacing(8);
     
     QLabel* infoLabel = new QLabel(QString("v%1<br>by <a href=\"https://github.com/sayedalimollah2602-prog\" style=\"color: %2; text-decoration: none;\">leVI</a> & <a href=\"https://github.com/raxnmint\" style=\"color: %2; text-decoration: none;\">raxnmint</a>").arg(Config::APP_VERSION).arg(Colors::ON_SURFACE_VARIANT));
     infoLabel->setStyleSheet(QString("color: %1; font-size: 10px; font-weight: bold; font-family: 'Roboto', 'Segoe UI'; background: transparent; border: none;").arg(Colors::ON_SURFACE_VARIANT));
@@ -490,8 +590,8 @@ void MainWindow::initUI() {
     infoLabel->setTextFormat(Qt::RichText);
     infoLabel->setTextInteractionFlags(Qt::TextBrowserInteraction);
     infoLabel->setOpenExternalLinks(true);
-    sidebarLayout->addWidget(infoLabel);
-    rootLayout->addWidget(sidebarWidget);
+    sidebarInnerLayout->addWidget(infoLabel);
+    rootLayout->addWidget(m_sidebarWidget);
 
     // ──── Content Area ────
     QWidget* contentWidget = new QWidget();
@@ -708,6 +808,12 @@ void MainWindow::initUI() {
     settingsLayout->addLayout(pathLayout);
     settingsLayout->addStretch();
     m_stack->addWidget(settingsWidget); // index 2
+    
+    // index 3: Game Details Page
+    m_gameDetailsPage = new GameDetailsPage(m_networkManager, this);
+    connect(m_gameDetailsPage, &GameDetailsPage::backClicked, this, &MainWindow::onGameDetailsBack);
+    connect(m_gameDetailsPage, &GameDetailsPage::addToLibraryClicked, this, &MainWindow::onInstallFromDetails);
+    m_stack->addWidget(m_gameDetailsPage); // index 3
     
     mainLayout->addWidget(m_stack);
     
@@ -1479,8 +1585,6 @@ void MainWindow::onCardClicked(GameCard* card) {
     if (!card) {
         m_selectedCard = nullptr;
         m_selectedGame.clear();
-        m_btnAddToLibrary->setEnabled(false);
-        m_statusLabel->setText("Ready");
         m_targetGlowColor = Colors::toQColor(Colors::PRIMARY);
         m_glowTimer->start(16);
         return;
@@ -1494,23 +1598,31 @@ void MainWindow::onCardClicked(GameCard* card) {
     bool isSupported = (data["supported"] == "true");
     bool hasFix = (data["hasFix"] == "true");
     
-    if (m_currentMode == AppMode::LuaPatcher) {
-        m_btnAddToLibrary->setEnabled(true);
-        if (hasFix) {
-            m_btnAddToLibrary->setDescription(QString("Download patch for %1").arg(data["name"]));
-            m_btnAddToLibrary->setAccentColor(Colors::ACCENT_GREEN);
-        } else {
-            m_btnAddToLibrary->setDescription(QString("Generate patch for %1").arg(data["name"]));
-            m_btnAddToLibrary->setAccentColor(Colors::PRIMARY);
-        }
-    } else if (m_currentMode == AppMode::Library) {
-        m_btnRemove->setEnabled(true);
-        m_btnRemove->setDescription(QString("Remove %1 from Library").arg(data["name"]));
-    }
-    m_statusLabel->setText(QString("Selected: %1").arg(data["name"]));
+    // Switch to details page and load data
+    m_gameDetailsPage->loadGame(data["appid"], data["name"], isSupported, hasFix);
+    m_stack->setCurrentIndex(3); // Game details page
     
     m_targetGlowColor = card->getDominantColor().isValid() ? card->getDominantColor() : Colors::toQColor(Colors::PRIMARY);
     m_glowTimer->start(16);
+}
+
+void MainWindow::onGameDetailsBack() {
+    // Return to the main grid view
+    m_stack->setCurrentIndex(1);
+    m_gameDetailsPage->clear();
+
+    
+    if (m_selectedCard) m_selectedCard->setSelected(false);
+    m_selectedCard = nullptr;
+    m_selectedGame.clear();
+    
+    m_targetGlowColor = Colors::toQColor(Colors::PRIMARY);
+    m_glowTimer->start(16);
+}
+
+void MainWindow::onInstallFromDetails(const QString& appId, const QString& name, bool hasFix) {
+    // This runs the same logic as the old Add to Library button
+    runPatchLogic();
 }
 
 // ---- Patch / Generate / Restart / Fix / Remove ----

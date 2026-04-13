@@ -41,6 +41,7 @@ set(SOURCES
     src/mainwindow.cpp
     src/glassbutton.cpp
     src/gamecard.cpp
+    src/gamedetailspage.cpp
     src/loadingspinner.cpp
     src/workers/indexdownloadworker.cpp
     src/workers/luadownloadworker.cpp
@@ -56,6 +57,7 @@ set(HEADERS
     src/mainwindow.h
     src/glassbutton.h
     src/gamecard.h
+    src/gamedetailspage.h
     src/loadingspinner.h
     src/workers/indexdownloadworker.h
     src/workers/luadownloadworker.h
