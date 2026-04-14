@@ -137,18 +137,18 @@ jobs:
         New-Item -ItemType Directory -Force -Path dist
         
         # Copy standalone exe
-        Copy-Item "build\SteamLuaPatcher.exe" "dist\"
+        Copy-Item "build\SteamLuaPatcher.exe" "dist\lua-patcher.exe"
         
         # Get file info
-        $exe = Get-Item "dist\SteamLuaPatcher.exe"
+        $exe = Get-Item "dist\lua-patcher.exe"
         $sizeMB = [math]::Round($exe.Length / 1MB, 2)
         Write-Host "Standalone executable size: $sizeMB MB"
 
     - name: Upload Build Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: SteamLuaPatcher-Standalone
-        path: dist/SteamLuaPatcher.exe
+        name: lua-patcher-Standalone
+        path: dist/lua-patcher.exe
         retention-days: 30
 
     # Only create release if commit message contains "release:"
@@ -235,13 +235,13 @@ jobs:
           ${{ steps.changelog.outputs.LOGS }}
           
           ## Download & Run
-          1. Download `SteamLuaPatcher.exe` below
+          1. Download `lua-patcher.exe` below
           2. Double-click to run - **no installation required!**
           
           ## Requirements
           - Windows 10/11 (64-bit)
         files: |
-          dist/SteamLuaPatcher.exe
+          dist/lua-patcher.exe
         draft: false
         prerelease: false
       env:
