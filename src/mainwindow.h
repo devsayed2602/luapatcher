@@ -99,6 +99,8 @@ private:
     bool loadCachedIndex();
     void updateAmbientGlow();
     void enableAcrylicBlur();
+    void updateHeroIndicators();
+    void jumpToHeroSlide(int index);
 
     // UI Components
     QString m_username;
@@ -119,6 +121,8 @@ private:
     QTimer* m_heroCarouselTimer;
     QList<GameInfo> m_heroGames;
     int m_currentHeroIndex = 0;
+    QWidget* m_heroIndicators = nullptr;
+    QHBoxLayout* m_heroIndicatorLayout = nullptr;
     
     // Trending (hidden row, cards go into hero banner now)
     QLabel* m_trendingTitle;
@@ -141,8 +145,6 @@ private:
     GlassButton* m_tabDiscord;
     AppMode m_currentMode;
 
-    GlassButton* m_btnAddToLibrary;
-    GlassButton* m_btnRemove;
     GlassButton* m_btnRestart;
     TerminalDialog* m_terminalDialog;
 
@@ -154,6 +156,10 @@ private:
     bool m_sidebarExpanded = false;
     QPropertyAnimation* m_sidebarAnimation;
     QTimer* m_sidebarCollapseTimer;
+    
+    QLabel* m_appTitleLabel;
+    QLabel* m_navTitleLabel;
+    QLabel* m_infoTitleLabel;
 
     // Data
     QList<GameInfo> m_supportedGames;

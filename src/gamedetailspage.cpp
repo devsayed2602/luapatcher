@@ -11,6 +11,73 @@
 #include <QEventLoop>
 #include <QScrollBar>
 
+namespace {
+class HeroBannerWidget : public QLabel {
+public:
+    HeroBannerWidget(QWidget* parent = nullptr) : QLabel(parent) {
+        setFixedHeight(350);
+        setMinimumWidth(1);
+        setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+    }
+    void setHeroPixmap(const QPixmap& pix) {
+        m_pix = pix;
+        update();
+    }
+    void setLogoPixmap(const QPixmap& logo) {
+        m_logo = logo;
+        update();
+    }
+    void clearHero() {
+        m_pix = QPixmap();
+        m_logo = QPixmap();
+        update();
+    }
+protected:
+    void paintEvent(QPaintEvent*) override {
+        QPainter p(this);
+        p.setRenderHint(QPainter::Antialiasing);
+        p.setRenderHint(QPainter::SmoothPixmapTransform);
+        QPainterPath path;
+        path.addRoundedRect(rect(), 12, 12);
+        p.setClipPath(path);
+        
+        if (m_pix.isNull()) {
+            p.fillRect(rect(), QColor("#1e1e1e"));
+            return;
+        }
+        
+        // Scale to fill the exact current bounds dynamically, then center crop
+        QPixmap scaled = m_pix.scaled(size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+        int dx = (scaled.width() - width()) / 2;
+        int dy = (scaled.height() - height()) / 2;
+        p.drawPixmap(0, 0, scaled, dx, dy, width(), height());
+        
+        // Draw logo overlay (bottom-left, like Steam)
+        if (!m_logo.isNull()) {
+            // Subtle vignette gradient behind the logo area
+            QLinearGradient vignette(QPointF(0, height() * 0.4), QPointF(0, height()));
+            vignette.setColorAt(0, QColor(0, 0, 0, 0));
+            vignette.setColorAt(0.6, QColor(0, 0, 0, 80));
+            vignette.setColorAt(1, QColor(0, 0, 0, 160));
+            p.fillRect(QRect(0, (int)(height() * 0.4), width(), height()), vignette);
+            
+            // Scale logo bigger (max 55% of banner width, max 65% of banner height)
+            int maxLogoW = (int)(width() * 0.55);
+            int maxLogoH = (int)(height() * 0.65);
+            QPixmap scaledLogo = m_logo.scaled(maxLogoW, maxLogoH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            
+            // Position: left, vertically centered
+            int logoX = 30;
+            int logoY = (height() - scaledLogo.height()) / 2;
+            p.drawPixmap(logoX, logoY, scaledLogo);
+        }
+    }
+private:
+    QPixmap m_pix;
+    QPixmap m_logo;
+};
+} // namespace
+
 GameDetailsPage::GameDetailsPage(QNetworkAccessManager* networkManager, QWidget* parent)
     : QWidget(parent), m_networkManager(networkManager)
 {
@@ -26,16 +93,12 @@ void GameDetailsPage::buildUI() {
     // Top Bar (Back button)
     QWidget* topBar = new QWidget();
     topBar->setFixedHeight(60);
-    topBar->setStyleSheet("background: rgba(18, 19, 23, 180); border-bottom: 1px solid rgba(255, 255, 255, 10);");
+    topBar->setStyleSheet("background: transparent; border: none;");
     QHBoxLayout* topBarLayout = new QHBoxLayout(topBar);
     topBarLayout->setContentsMargins(20, 0, 20, 0);
 
-    GlassButton* backBtn = new GlassButton(MaterialIcons::Refresh, "Back", "", Colors::ON_SURFACE_VARIANT, this);
-    // Let's just use the button with a smaller size and different style natively, 
-    // but GlassButton is fine. We will configure it simply.
-    // For now, let's just make it a simple text button to be safe if GlassButton is complex
     QPushButton* realBackBtn = new QPushButton("← Back");
-    realBackBtn->setStyleSheet("QPushButton { font-size: 16px; color: white; background: transparent; border: none; font-weight: bold; }"
+    realBackBtn->setStyleSheet("QPushButton { font-size: 16px; color: white; background: transparent; border: none; font-weight: bold; padding: 10px; }"
                                "QPushButton:hover { color: #bb86fc; }");
     realBackBtn->setCursor(Qt::PointingHandCursor);
     connect(realBackBtn, &QPushButton::clicked, this, &GameDetailsPage::backClicked);
@@ -52,29 +115,38 @@ void GameDetailsPage::buildUI() {
     m_contentWidget = new QWidget();
     m_contentWidget->setStyleSheet("background: transparent;");
     m_contentLayout = new QVBoxLayout(m_contentWidget);
-    m_contentLayout->setContentsMargins(0, 0, 0, 40);
+    m_contentLayout->setContentsMargins(20, 20, 20, 40); // Unified 20px padding
     m_contentLayout->setSpacing(30);
 
     // Hero Banner
-    m_heroBanner = new QLabel();
-    m_heroBanner->setFixedHeight(250);
-    m_heroBanner->setStyleSheet("background: #1e1e1e; border-radius: 12px; margin: 20px 20px 0 20px;");
-    m_heroBanner->setScaledContents(true);
-    m_heroBanner->setAlignment(Qt::AlignCenter);
+    m_heroBanner = new HeroBannerWidget();
     m_contentLayout->addWidget(m_heroBanner);
 
     // Info Row (Description + Install Context)
     QWidget* infoRow = new QWidget();
-    infoRow->setStyleSheet("margin: 0 20px;");
     QHBoxLayout* infoLayout = new QHBoxLayout(infoRow);
-    infoLayout->setContentsMargins(0, 0, 0, 0);
+    infoLayout->setContentsMargins(0, 0, 0, 0); // Rely on global 20px
     infoLayout->setSpacing(40);
+
+    // Description Layout
+    QVBoxLayout* descLayout = new QVBoxLayout();
+    descLayout->setContentsMargins(0, 0, 0, 0);
+    descLayout->setSpacing(8);
+    descLayout->setAlignment(Qt::AlignTop);
+
+    m_gameTitleLabel = new QLabel("");
+    m_gameTitleLabel->setStyleSheet("font-size: 28px; font-weight: bold; color: white;");
+    m_gameTitleLabel->setWordWrap(true);
+    descLayout->addWidget(m_gameTitleLabel);
 
     m_descriptionLabel = new QLabel("Loading description...");
     m_descriptionLabel->setWordWrap(true);
+    m_descriptionLabel->setMaximumWidth(800); // 1. Limit description width
     m_descriptionLabel->setStyleSheet("font-size: 14px; color: #dddddd; line-height: 1.5;");
     m_descriptionLabel->setAlignment(Qt::AlignTop | Qt::AlignLeft);
-    infoLayout->addWidget(m_descriptionLabel, 3); // Takes 3/4 space
+    descLayout->addWidget(m_descriptionLabel);
+    
+    infoLayout->addLayout(descLayout, 3); // Takes 3/4 space
 
     // Install Button Widget
     QWidget* actionWidget = new QWidget();
@@ -82,9 +154,25 @@ void GameDetailsPage::buildUI() {
     actionLayout->setContentsMargins(0, 0, 0, 0);
     actionLayout->setAlignment(Qt::AlignTop | Qt::AlignRight);
     
-    m_installButton = new GlassButton(MaterialIcons::Download, "Add to Library", "Download patch", Colors::PRIMARY);
-    // GlassButton has a fixed width in its class usually, but we'll add it
+    m_installButton = new QPushButton("Install");
+    m_installButton->setCursor(Qt::PointingHandCursor);
+    m_installButton->setFixedSize(220, 45);
+    m_installButton->setStyleSheet(
+        "QPushButton {"
+        "  background: #2E7D32; color: white; font-weight: 800; font-size: 16px; border-radius: 4px; font-family: 'Segoe UI';"
+        "}"
+        "QPushButton:hover {"
+        "  background: #388E3C;"
+        "}"
+        "QPushButton:disabled {"
+        "  background: #424242; color: #757575;"
+        "}"
+    );
+    
     connect(m_installButton, &QPushButton::clicked, this, [this]() {
+        if (m_isDownloading) return;
+        m_isDownloading = true;
+        // The reset will be handled if needed, but for now we emit
         emit addToLibraryClicked(m_appId, m_gameName, m_hasFix);
     });
     actionLayout->addWidget(m_installButton);
@@ -94,29 +182,60 @@ void GameDetailsPage::buildUI() {
 
     // Screenshots Section
     QLabel* ssTitle = new QLabel("Game Previews");
-    ssTitle->setStyleSheet("font-size: 18px; font-weight: bold; color: white; margin: 10px 20px 0 20px;");
+    ssTitle->setStyleSheet("font-size: 18px; font-weight: bold; color: white; margin: 10px 0px 0 0px;");
     m_contentLayout->addWidget(ssTitle);
 
     QScrollArea* ssScroll = new QScrollArea();
     ssScroll->setWidgetResizable(true);
-    ssScroll->setFixedHeight(200);
+    ssScroll->setFixedHeight(270);
     ssScroll->setStyleSheet("QScrollArea { border: none; background: transparent; } QScrollBar { height: 0px; }");
     
     QWidget* ssContainer = new QWidget();
-    ssContainer->setStyleSheet("background: transparent; margin: 0 20px;");
+    ssContainer->setStyleSheet("background: transparent;");
     m_screenshotLayout = new QHBoxLayout(ssContainer);
-    m_screenshotLayout->setContentsMargins(0, 0, 0, 0);
-    m_screenshotLayout->setSpacing(15);
+    m_screenshotLayout->setContentsMargins(0, 0, 0, 0); // Rely on global 20px
+    m_screenshotLayout->setSpacing(8); // Gap reduced here
     m_screenshotLayout->setAlignment(Qt::AlignLeft);
     
     ssScroll->setWidget(ssContainer);
-    m_contentLayout->addWidget(ssScroll);
+    
+    // Create wrapper layout with navigation buttons
+    QHBoxLayout* ssWrapperLayout = new QHBoxLayout();
+    ssWrapperLayout->setContentsMargins(0, 0, 0, 0);
+    ssWrapperLayout->setSpacing(10);
+    
+    QPushButton* btnPrev = new QPushButton("<");
+    btnPrev->setFixedSize(40, 40);
+    btnPrev->setCursor(Qt::PointingHandCursor);
+    btnPrev->setStyleSheet("QPushButton { background: rgba(30,30,40,200); color: white; font-weight: bold; font-size: 20px; border-radius: 20px; font-family: 'Segoe UI', sans-serif; }"
+                           "QPushButton:hover { background: rgba(255,255,255,50); }");
+                           
+    QPushButton* btnNext = new QPushButton(">");
+    btnNext->setFixedSize(40, 40);
+    btnNext->setCursor(Qt::PointingHandCursor);
+    btnNext->setStyleSheet("QPushButton { background: rgba(30,30,40,200); color: white; font-weight: bold; font-size: 20px; border-radius: 20px; font-family: 'Segoe UI', sans-serif; }"
+                           "QPushButton:hover { background: rgba(255,255,255,50); }");
+
+    connect(btnPrev, &QPushButton::clicked, this, [ssScroll]() {
+        QScrollBar* hb = ssScroll->horizontalScrollBar();
+        hb->setValue(qMax(0, hb->value() - 428)); // Shift left by 1 item + spacing
+    });
+    
+    connect(btnNext, &QPushButton::clicked, this, [ssScroll]() {
+        QScrollBar* hb = ssScroll->horizontalScrollBar();
+        hb->setValue(qMin(hb->maximum(), hb->value() + 428)); // Shift right by 1 item
+    });
+
+    ssWrapperLayout->addWidget(btnPrev);
+    ssWrapperLayout->addWidget(ssScroll);
+    ssWrapperLayout->addWidget(btnNext);
+    
+    m_contentLayout->addLayout(ssWrapperLayout);
 
     // Features and Security Row
     QWidget* detailsRow = new QWidget();
-    detailsRow->setStyleSheet("margin: 20px 20px;");
     QHBoxLayout* detailsLayout = new QHBoxLayout(detailsRow);
-    detailsLayout->setContentsMargins(0, 0, 0, 0);
+    detailsLayout->setContentsMargins(0, 0, 0, 0); // Rely on global 20px
     detailsLayout->setSpacing(40);
     detailsLayout->setAlignment(Qt::AlignTop);
 
@@ -127,7 +246,7 @@ void GameDetailsPage::buildUI() {
     m_featuresLayout->setContentsMargins(0, 0, 0, 0);
     
     QLabel* fTitle = new QLabel("Game Features");
-    fTitle->setStyleSheet("font-size: 16px; font-weight: bold; color: white;");
+    fTitle->setStyleSheet("font-size: 18px; font-weight: 800; color: white; font-family: 'Segoe UI'; border-bottom: 1px solid #333; padding-bottom: 4px;");
     m_featuresLayout->addWidget(fTitle);
     
     detailsLayout->addWidget(featuresWidget, 1);
@@ -138,8 +257,8 @@ void GameDetailsPage::buildUI() {
     m_securityLayout->setAlignment(Qt::AlignTop);
     m_securityLayout->setContentsMargins(0, 0, 0, 0);
     
-    QLabel* secTitle = new QLabel("# Security / DRM");
-    secTitle->setStyleSheet("font-size: 16px; font-weight: bold; color: #FFB74D;");
+    QLabel* secTitle = new QLabel("Security");
+    secTitle->setStyleSheet("font-size: 18px; font-weight: 800; color: #FFB74D; font-family: 'Segoe UI'; border-bottom: 1px solid #333; padding-bottom: 4px;");
     m_securityLayout->addWidget(secTitle);
     
     detailsLayout->addWidget(securityWidget, 1);
@@ -159,8 +278,8 @@ void GameDetailsPage::keyPressEvent(QKeyEvent* event) {
 }
 
 void GameDetailsPage::clear() {
-    m_heroBanner->clear();
-    m_heroBanner->setText("");
+    static_cast<HeroBannerWidget*>(m_heroBanner)->clearHero();
+    m_gameTitleLabel->setText("");
     m_descriptionLabel->setText("");
     
     // Clear screenshots
@@ -188,12 +307,11 @@ void GameDetailsPage::clear() {
 void GameDetailsPage::showSkeleton() {
     clear();
     m_descriptionLabel->setText("Loading game details...");
-    m_heroBanner->setStyleSheet("background: #2a2a2a; border-radius: 12px; margin: 20px 20px 0 20px;");
     
     // Add empty screenshot skeletons
     for (int i = 0; i < 3; ++i) {
         QLabel* emptySs = new QLabel();
-        emptySs->setFixedSize(300, 169);
+        emptySs->setFixedSize(420, 236);
         emptySs->setStyleSheet("background: #2a2a2a; border-radius: 8px;");
         m_screenshotLayout->addWidget(emptySs);
     }
@@ -206,19 +324,28 @@ void GameDetailsPage::loadGame(const QString& appId, const QString& name, bool s
     m_hasFix = hasFix;
 
     // Reset UI to skeleton state
+    m_isDownloading = false;
     showSkeleton();
+    
+    // Set game title immediately
+    m_gameTitleLabel->setText(m_gameName);
     
     // Update Action Button
     m_installButton->setEnabled(supported);
-    if (hasFix) {
-        m_installButton->setDescription(QString("Download patch for %1").arg(name));
-        m_installButton->setAccentColor(Colors::ACCENT_GREEN);
-    } else {
-        m_installButton->setDescription(QString("Generate patch for %1").arg(name));
-        m_installButton->setAccentColor(Colors::PRIMARY);
-    }
+    m_installButton->setText(hasFix ? "Download Patch" : "Generate Patch");
+    m_installButton->setStyleSheet(
+        "QPushButton {"
+        "  background: #2E7D32; color: white; font-weight: 800; font-size: 16px; border-radius: 4px; font-family: 'Segoe UI';"
+        "}"
+        "QPushButton:hover {"
+        "  background: #388E3C;"
+        "}"
+        "QPushButton:disabled {"
+        "  background: #424242; color: #757575;"
+        "}"
+    );
 
-    // Set fallback hero image right away
+    // Fetch hero background image
     QString heroUrl = QString("https://cdn.akamai.steamstatic.com/steam/apps/%1/library_hero.jpg").arg(appId);
     QNetworkRequest hReq{QUrl(heroUrl)};
     hReq.setHeader(QNetworkRequest::UserAgentHeader, "SteamLuaPatcher/2.0");
@@ -228,16 +355,22 @@ void GameDetailsPage::loadGame(const QString& appId, const QString& name, bool s
         if (heroReply->error() == QNetworkReply::NoError) {
             QPixmap rawPix;
             if (rawPix.loadFromData(heroReply->readAll())) {
-                QPixmap rounded(rawPix.size());
-                rounded.fill(Qt::transparent);
-                QPainter p(&rounded);
-                p.setRenderHint(QPainter::Antialiasing);
-                QPainterPath path;
-                path.addRoundedRect(rounded.rect(), 12, 12);
-                p.setClipPath(path);
-                p.drawPixmap(0, 0, rawPix);
-                m_heroBanner->setStyleSheet("margin: 20px 20px 0 20px;");
-                m_heroBanner->setPixmap(rounded);
+                static_cast<HeroBannerWidget*>(m_heroBanner)->setHeroPixmap(rawPix);
+            }
+        }
+    });
+    
+    // Fetch game logo overlay
+    QString logoUrl = QString("https://cdn.akamai.steamstatic.com/steam/apps/%1/logo.png").arg(appId);
+    QNetworkRequest logoReq{QUrl(logoUrl)};
+    logoReq.setHeader(QNetworkRequest::UserAgentHeader, "SteamLuaPatcher/2.0");
+    QNetworkReply* logoReply = m_networkManager->get(logoReq);
+    connect(logoReply, &QNetworkReply::finished, this, [this, logoReply]() {
+        logoReply->deleteLater();
+        if (logoReply->error() == QNetworkReply::NoError) {
+            QPixmap logoPix;
+            if (logoPix.loadFromData(logoReply->readAll())) {
+                static_cast<HeroBannerWidget*>(m_heroBanner)->setLogoPixmap(logoPix);
             }
         }
     });
@@ -300,7 +433,7 @@ void GameDetailsPage::populate(const QJsonObject& data) {
         QString url = ss["path_thumbnail"].toString();
         
         QLabel* imgLbl = new QLabel();
-        imgLbl->setFixedSize(300, 169);
+        imgLbl->setFixedSize(420, 236);
         imgLbl->setStyleSheet("background: #2a2a2a; border-radius: 8px;");
         imgLbl->setScaledContents(true);
         m_screenshotLayout->addWidget(imgLbl);
@@ -314,14 +447,14 @@ void GameDetailsPage::populate(const QJsonObject& data) {
             if (imgReply->error() == QNetworkReply::NoError && imgLbl) {
                 QPixmap rawPix;
                 if (rawPix.loadFromData(imgReply->readAll())) {
-                    QPixmap rounded(300, 169);
+                    QPixmap rounded(420, 236);
                     rounded.fill(Qt::transparent);
                     QPainter p(&rounded);
                     p.setRenderHint(QPainter::Antialiasing);
                     QPainterPath path;
                     path.addRoundedRect(rounded.rect(), 8, 8);
                     p.setClipPath(path);
-                    p.drawPixmap(rounded.rect(), rawPix.scaled(300, 169, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+                    p.drawPixmap(rounded.rect(), rawPix.scaled(420, 236, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
                     if (imgLbl) imgLbl->setPixmap(rounded);
                 }
             }
@@ -369,5 +502,30 @@ void GameDetailsPage::populate(const QJsonObject& data) {
         QLabel* l = new QLabel("✓ No third-party DRM known");
         l->setStyleSheet("color: #4CAF50; font-size: 14px;");
         m_securityLayout->addWidget(l);
+    }
+}
+
+void GameDetailsPage::updateInstallProgress(int pct) {
+    if (pct < 100) {
+        m_isDownloading = true;
+        m_installButton->setText(QString("Downloading... %1%").arg(pct));
+        double ratio = pct / 100.0;
+        double stop2 = ratio + 0.001;
+        if (stop2 > 1.0) stop2 = 1.0;
+        
+        m_installButton->setStyleSheet(QString(
+            "QPushButton {"
+            "  background: qlineargradient(x1:0, y1:0, x2:1, y2:0, "
+            "    stop:0 #2E7D32, stop:%1 #2E7D32, stop:%2 #424242, stop:1 #424242);"
+            "  color: white; font-weight: 800; font-size: 16px; border-radius: 4px; font-family: 'Segoe UI';"
+            "}").arg(ratio).arg(stop2));
+    } else {
+        m_isDownloading = false;
+        m_installButton->setText("Installed / Restart Steam");
+        m_installButton->setStyleSheet(
+            "QPushButton {"
+            "  background: #2E7D32; color: white; font-weight: 800; font-size: 16px; border-radius: 4px; font-family: 'Segoe UI';"
+            "}"
+        );
     }
 }

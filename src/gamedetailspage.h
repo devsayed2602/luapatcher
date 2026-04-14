@@ -12,7 +12,8 @@
 #include <QPushButton>
 #include <QMap>
 
-class GlassButton;
+// Forward declaration
+class QPushButton;
 
 class GameDetailsPage : public QWidget {
     Q_OBJECT
@@ -32,6 +33,9 @@ protected:
 
 private slots:
     void onDetailsReceived(QNetworkReply* reply);
+
+public slots:
+    void updateInstallProgress(int pct);
 
 private:
     void buildUI();
@@ -56,8 +60,10 @@ private:
     QLabel* m_heroBanner;
 
     // Info row
+    QLabel* m_gameTitleLabel;
     QLabel* m_descriptionLabel;
-    GlassButton* m_installButton;
+    QPushButton* m_installButton;
+    bool m_isDownloading = false;
 
     // Screenshots
     QHBoxLayout* m_screenshotLayout;

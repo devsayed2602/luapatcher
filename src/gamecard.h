@@ -5,9 +5,11 @@
 #include <QPixmap>
 #include <QMap>
 #include <QTimer>
+#include <QPropertyAnimation>
 
 class GameCard : public QWidget {
     Q_OBJECT
+    Q_PROPERTY(qreal hoverOpacity READ hoverOpacity WRITE setHoverOpacity)
 
 public:
     explicit GameCard(QWidget* parent = nullptr);
@@ -26,6 +28,9 @@ public:
 
     void setSkeleton(bool skeleton);
     bool isSkeleton() const;
+
+    qreal hoverOpacity() const { return m_hoverOpacity; }
+    void setHoverOpacity(qreal v) { m_hoverOpacity = v; update(); }
 
 signals:
     void clicked(GameCard* card);
@@ -50,6 +55,8 @@ private:
     qreal m_skeletonPulse = 0.0;
     bool m_pulseIncreasing = true;
     QColor m_dominantColor;
+    qreal m_hoverOpacity = 0.0;
+    QPropertyAnimation* m_hoverAnim = nullptr;
     void extractDominantColor(const QPixmap& pixmap);
 };
 

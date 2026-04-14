@@ -261,51 +261,43 @@ void GameCard::paintEvent(QPaintEvent* event) {
         painter.fillRect(cardRect.toRect(), surfaceColor);
     }
 
-    // ── Bottom info area ──
-    int infoHeight = 60; 
-    QRectF infoRect(cardRect.left(), cardRect.bottom() - infoHeight,
-                    cardRect.width(), infoHeight);
+    // ── Bottom info area (animated opacity) ──
+    if (m_hoverOpacity > 0.01 || m_selected) {
+        qreal opacity = m_selected ? 1.0 : m_hoverOpacity;
+        int infoHeight = 70; 
+        QRectF infoRect(cardRect.left(), cardRect.bottom() - infoHeight,
+                        cardRect.width(), infoHeight);
 
-    // Material surface overlay for readability
-    QLinearGradient infoGrad(infoRect.topLeft(), infoRect.bottomLeft());
-    if (m_hasThumbnail) {
-        infoGrad.setColorAt(0, QColor(8, 8, 12, 180));
-        infoGrad.setColorAt(1, QColor(8, 8, 12, 220));
+        // Seamless gradient from transparent to dark (no separator line)
+        QLinearGradient infoGrad(infoRect.topLeft(), infoRect.bottomLeft());
+        infoGrad.setColorAt(0, QColor(0, 0, 0, 0));
+        infoGrad.setColorAt(0.4, QColor(8, 8, 12, (int)(160 * opacity)));
+        infoGrad.setColorAt(1, QColor(8, 8, 12, (int)(230 * opacity)));
         painter.fillRect(infoRect.toRect(), infoGrad);
-        painter.setPen(QPen(QColor(255, 255, 255, 30), 1));
-        painter.drawLine(infoRect.topLeft(), infoRect.topRight());
-    } else {
-        // Flat frosted bottom
-        QColor frostedBottom = Colors::toQColor(Colors::SURFACE_CONTAINER_HIGHEST);
-        frostedBottom.setAlpha(180);
-        painter.fillRect(infoRect.toRect(), frostedBottom);
-        // Subtle top border relative to the bottom section
-        painter.setPen(QPen(QColor(255,255,255,20), 1));
-        painter.drawLine(infoRect.topLeft(), infoRect.topRight());
+
+        // Game name
+        QString name = m_data.value("name", "Unknown");
+        QFont nameFont("Roboto", 10, QFont::DemiBold);
+        nameFont.setStyleStrategy(QFont::PreferAntialias);
+        painter.setFont(nameFont);
+        painter.setPen(QColor(255, 255, 255, (int)(240 * opacity)));
+
+        QRectF nameRect(infoRect.left() + 12, infoRect.top() + 22,
+                        infoRect.width() - 24, 22);
+        QFontMetrics fm(nameFont);
+        QString elidedName = fm.elidedText(name, Qt::ElideRight, (int)nameRect.width());
+        painter.drawText(nameRect, Qt::AlignLeft | Qt::AlignVCenter, elidedName);
+
+        // App ID
+        QFont idFont("Roboto", 8);
+        idFont.setStyleStrategy(QFont::PreferAntialias);
+        painter.setFont(idFont);
+        painter.setPen(QColor(180, 180, 200, (int)(200 * opacity)));
+        QRectF idRect(infoRect.left() + 12, infoRect.top() + 44,
+                      infoRect.width() - 24, 18);
+        painter.drawText(idRect, Qt::AlignLeft | Qt::AlignVCenter,
+                         QString("ID: %1").arg(m_data.value("appid", "?")));
     }
-
-    // Game name
-    QString name = m_data.value("name", "Unknown");
-    QFont nameFont("Roboto", 10, QFont::DemiBold);
-    nameFont.setStyleStrategy(QFont::PreferAntialias);
-    painter.setFont(nameFont);
-    painter.setPen(Colors::toQColor(Colors::ON_SURFACE));
-
-    QRectF nameRect(infoRect.left() + 12, infoRect.top() + 10,
-                    infoRect.width() - 24, 22);
-    QFontMetrics fm(nameFont);
-    QString elidedName = fm.elidedText(name, Qt::ElideRight, (int)nameRect.width());
-    painter.drawText(nameRect, Qt::AlignLeft | Qt::AlignVCenter, elidedName);
-
-    // App ID
-    QFont idFont("Roboto", 8);
-    idFont.setStyleStrategy(QFont::PreferAntialias);
-    painter.setFont(idFont);
-    painter.setPen(Colors::toQColor(Colors::ON_SURFACE_VARIANT));
-    QRectF idRect(infoRect.left() + 12, infoRect.top() + 34,
-                  infoRect.width() - 24, 18);
-    painter.drawText(idRect, Qt::AlignLeft | Qt::AlignVCenter,
-                     QString("ID: %1").arg(m_data.value("appid", "?")));
 
     // Reset clip for border drawing
     painter.setClipRect(rect());
@@ -356,12 +348,30 @@ void GameCard::enterEvent(QEnterEvent* event) {
     Q_UNUSED(event);
     if (m_isSkeleton) return;
     m_hovered = true;
-    update();
+    
+    if (!m_hoverAnim) {
+        m_hoverAnim = new QPropertyAnimation(this, "hoverOpacity", this);
+    }
+    m_hoverAnim->stop();
+    m_hoverAnim->setDuration(200);
+    m_hoverAnim->setStartValue(m_hoverOpacity);
+    m_hoverAnim->setEndValue(1.0);
+    m_hoverAnim->setEasingCurve(QEasingCurve::OutCubic);
+    m_hoverAnim->start();
 }
 
 void GameCard::leaveEvent(QEvent* event) {
     Q_UNUSED(event);
     if (m_isSkeleton) return;
     m_hovered = false;
-    update();
+    
+    if (!m_hoverAnim) {
+        m_hoverAnim = new QPropertyAnimation(this, "hoverOpacity", this);
+    }
+    m_hoverAnim->stop();
+    m_hoverAnim->setDuration(200);
+    m_hoverAnim->setStartValue(m_hoverOpacity);
+    m_hoverAnim->setEndValue(0.0);
+    m_hoverAnim->setEasingCurve(QEasingCurve::InCubic);
+    m_hoverAnim->start();
 }

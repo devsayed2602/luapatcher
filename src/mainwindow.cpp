@@ -127,6 +127,11 @@ MainWindow::MainWindow(QWidget* parent)
         setWindowIcon(QIcon(iconPath));
     }
     
+    // Initialize network manager BEFORE UI is built
+    m_networkManager = new QNetworkAccessManager(this);
+    connect(m_networkManager, &QNetworkAccessManager::finished,
+            this, &MainWindow::onSearchFinished);
+            
     initUI();
     
     // Apply Desktop Acrylic/Mica Blur
@@ -142,9 +147,6 @@ MainWindow::MainWindow(QWidget* parent)
     connect(m_glowTimer, &QTimer::timeout, this, &MainWindow::updateAmbientGlow);
     
     QTimer::singleShot(10, this, [this]() {
-        m_networkManager = new QNetworkAccessManager(this);
-        connect(m_networkManager, &QNetworkAccessManager::finished,
-                this, &MainWindow::onSearchFinished);
         startSync();
         fetchTrendingGames();
     });
@@ -256,6 +258,10 @@ void MainWindow::expandSidebar() {
     
     fwEffect->start(QAbstractAnimation::DeleteWhenStopped);
     m_sidebarAnimation->start();
+    
+    if (m_appTitleLabel) m_appTitleLabel->show();
+    if (m_navTitleLabel) m_navTitleLabel->show();
+    if (m_infoTitleLabel) m_infoTitleLabel->show();
 }
 
 void MainWindow::collapseSidebarDelayed() {
@@ -274,6 +280,10 @@ void MainWindow::collapseSidebarDelayed() {
     
     fwEffect->start(QAbstractAnimation::DeleteWhenStopped);
     m_sidebarAnimation->start();
+    
+    if (m_appTitleLabel) m_appTitleLabel->hide();
+    if (m_navTitleLabel) m_navTitleLabel->hide();
+    if (m_infoTitleLabel) m_infoTitleLabel->hide();
 }
 
 void MainWindow::scrollCarousel() {
@@ -322,6 +332,96 @@ void MainWindow::scrollCarousel() {
     
     fadeOut->start(QAbstractAnimation::DeleteWhenStopped);
     fadeIn->start(QAbstractAnimation::DeleteWhenStopped);
+    
+    updateHeroIndicators();
+}
+
+void MainWindow::jumpToHeroSlide(int index) {
+    if (!m_heroStack || index < 0 || index >= m_heroStack->count() || index == m_currentHeroIndex) return;
+    
+    int oldIndex = m_currentHeroIndex;
+    m_currentHeroIndex = index;
+    
+    QWidget* oldSlide = m_heroStack->widget(oldIndex);
+    QWidget* newSlide = m_heroStack->widget(m_currentHeroIndex);
+    
+    auto* fadeOutEffect = new QGraphicsOpacityEffect(oldSlide);
+    fadeOutEffect->setOpacity(1.0);
+    oldSlide->setGraphicsEffect(fadeOutEffect);
+    
+    auto* fadeInEffect = new QGraphicsOpacityEffect(newSlide);
+    fadeInEffect->setOpacity(0.0);
+    newSlide->setGraphicsEffect(fadeInEffect);
+    
+    m_heroStack->setCurrentIndex(m_currentHeroIndex);
+    
+    auto* fadeOut = new QPropertyAnimation(fadeOutEffect, "opacity", this);
+    fadeOut->setDuration(300);
+    fadeOut->setStartValue(1.0);
+    fadeOut->setEndValue(0.0);
+    fadeOut->setEasingCurve(QEasingCurve::InOutQuad);
+    connect(fadeOut, &QPropertyAnimation::finished, [oldSlide]() {
+        oldSlide->setGraphicsEffect(nullptr);
+    });
+    
+    auto* fadeIn = new QPropertyAnimation(fadeInEffect, "opacity", this);
+    fadeIn->setDuration(300);
+    fadeIn->setStartValue(0.0);
+    fadeIn->setEndValue(1.0);
+    fadeIn->setEasingCurve(QEasingCurve::InOutQuad);
+    connect(fadeIn, &QPropertyAnimation::finished, [newSlide]() {
+        newSlide->setGraphicsEffect(nullptr);
+    });
+    
+    fadeOut->start(QAbstractAnimation::DeleteWhenStopped);
+    fadeIn->start(QAbstractAnimation::DeleteWhenStopped);
+    
+    updateHeroIndicators();
+    
+    // Reset the auto-scroll timer
+    if (m_heroCarouselTimer->isActive()) {
+        m_heroCarouselTimer->start(5000);
+    }
+}
+
+void MainWindow::updateHeroIndicators() {
+    if (!m_heroIndicatorLayout) return;
+    
+    int count = m_heroStack ? m_heroStack->count() : 0;
+    
+    // Clear existing indicators
+    QLayoutItem* child;
+    while ((child = m_heroIndicatorLayout->takeAt(0)) != nullptr) {
+        if (child->widget()) delete child->widget();
+        delete child;
+    }
+    
+    if (count <= 1) return; // No indicators needed for 0 or 1 slides
+    
+    for (int i = 0; i < count; ++i) {
+        QPushButton* bar = new QPushButton();
+        bar->setFixedSize(i == m_currentHeroIndex ? 36 : 24, 4);
+        bar->setCursor(Qt::PointingHandCursor);
+        bar->setFlat(true);
+        
+        if (i == m_currentHeroIndex) {
+            bar->setStyleSheet(
+                "QPushButton { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, "
+                "stop:0 #bb86fc, stop:1 #6200ee); border: none; border-radius: 2px; }"
+            );
+        } else {
+            bar->setStyleSheet(
+                "QPushButton { background: rgba(255,255,255,60); border: none; border-radius: 2px; }"
+                "QPushButton:hover { background: rgba(255,255,255,120); }"
+            );
+        }
+        
+        connect(bar, &QPushButton::clicked, this, [this, i]() {
+            jumpToHeroSlide(i);
+        });
+        
+        m_heroIndicatorLayout->addWidget(bar);
+    }
 }
 
 void MainWindow::updateAmbientGlow() {
@@ -450,9 +550,9 @@ void MainWindow::initUI() {
     m_sidebarCollapseTimer->setSingleShot(true);
     connect(m_sidebarCollapseTimer, &QTimer::timeout, this, &MainWindow::collapseSidebarDelayed);
     
-    // Inner container so contents don't squeeze when narrow, they just clip
+    // Inner container, now allows shrinking so buttons get narrow!
     QWidget* sidebarInner = new QWidget();
-    sidebarInner->setFixedWidth(230);
+    sidebarInner->setMinimumWidth(60);
     sidebarInner->setStyleSheet("background: transparent; border: none;");
     
     QVBoxLayout* sidebarInnerLayout = new QVBoxLayout(sidebarInner);
@@ -483,23 +583,26 @@ void MainWindow::initUI() {
     appIconLabel->setStyleSheet(appIconLabel->styleSheet() + " border: none; background: transparent;");
     headerLayout->addWidget(appIconLabel);
     
-    QLabel* title = new QLabel("Lua Patcher");
-    title->setStyleSheet(QString(
+    m_appTitleLabel = new QLabel("Lua Patcher");
+    m_appTitleLabel->setStyleSheet(QString(
         "font-size: 17px; font-weight: 700; color: %1; background: transparent; border: none; font-family: 'Roboto', 'Segoe UI';"
     ).arg(Colors::ON_SURFACE));
-    headerLayout->addWidget(title);
+    headerLayout->addWidget(m_appTitleLabel);
     headerLayout->addStretch();
     sidebarInnerLayout->addLayout(headerLayout);
     sidebarInnerLayout->addSpacing(20);
     
     // ── Section label ──
-    QLabel* navLabel = new QLabel("NAVIGATION");
-    navLabel->setStyleSheet(QString(
+    m_navTitleLabel = new QLabel("NAVIGATION");
+    m_navTitleLabel->setStyleSheet(QString(
         "font-size: 10px; font-weight: 600; color: %1; letter-spacing: 1px;"
         " background: transparent; border: none; padding-left: 4px; font-family: 'Roboto', 'Segoe UI';"
     ).arg(Colors::OUTLINE));
-    sidebarInnerLayout->addWidget(navLabel);
+    sidebarInnerLayout->addWidget(m_navTitleLabel);
     sidebarInnerLayout->addSpacing(4);
+    
+    m_appTitleLabel->hide(); // Start collapsed
+    m_navTitleLabel->hide(); // Start collapsed
     
     // Navigation tabs
     m_tabLua = new GlassButton(MaterialIcons::Download, " App Store", "", Colors::PRIMARY);
@@ -546,35 +649,12 @@ void MainWindow::initUI() {
     
     sidebarInnerLayout->addStretch();
     
-    // ── Section label for actions ──
-    QLabel* actionsLabel = new QLabel("ACTIONS");
-    actionsLabel->setStyleSheet(QString(
-        "font-size: 10px; font-weight: 600; color: %1; letter-spacing: 1px;"
-        " background: transparent; border: none; padding-left: 4px; font-family: 'Roboto', 'Segoe UI';"
-    ).arg(Colors::OUTLINE));
-    sidebarInnerLayout->addWidget(actionsLabel);
-    sidebarInnerLayout->addSpacing(4);
-    
-    // Action buttons
-    m_btnAddToLibrary = new GlassButton(MaterialIcons::Add, "Add to Library", "Install / Generate Patch", Colors::ACCENT_GREEN);
-    m_btnAddToLibrary->setFixedHeight(52);
-    m_btnAddToLibrary->setEnabled(false);
-    connect(m_btnAddToLibrary, &QPushButton::clicked, this, &MainWindow::doAddGame);
-    sidebarInnerLayout->addWidget(m_btnAddToLibrary);
-
-    m_btnRemove = new GlassButton(MaterialIcons::Delete, "Remove", "Remove from Library", Colors::ACCENT_RED);
-    m_btnRemove->setFixedHeight(52);
-    m_btnRemove->setEnabled(false);
-    m_btnRemove->hide();
-    connect(m_btnRemove, &QPushButton::clicked, this, &MainWindow::doRemoveGame);
-    sidebarInnerLayout->addWidget(m_btnRemove);
-    
-    sidebarInnerLayout->addSpacing(6);
-    m_btnRestart = new GlassButton(MaterialIcons::RestartAlt, "Restart Steam", "Apply Changes", Colors::PRIMARY);
-    m_btnRestart->setFixedHeight(52);
+    m_btnRestart = new GlassButton(MaterialIcons::RestartAlt, " Restart Steam", "Apply Changes", Colors::PRIMARY);
+    m_btnRestart->setFixedHeight(44);
     connect(m_btnRestart, &QPushButton::clicked, this, &MainWindow::doRestart);
     sidebarInnerLayout->addWidget(m_btnRestart);
-    sidebarInnerLayout->addSpacing(12);
+    
+    sidebarInnerLayout->addStretch();
     
     // Divider before version info
     QFrame* line2 = new QFrame();
@@ -584,13 +664,16 @@ void MainWindow::initUI() {
     sidebarInnerLayout->addWidget(line2);
     sidebarInnerLayout->addSpacing(8);
     
-    QLabel* infoLabel = new QLabel(QString("v%1<br>by <a href=\"https://github.com/sayedalimollah2602-prog\" style=\"color: %2; text-decoration: none;\">leVI</a> & <a href=\"https://github.com/raxnmint\" style=\"color: %2; text-decoration: none;\">raxnmint</a>").arg(Config::APP_VERSION).arg(Colors::ON_SURFACE_VARIANT));
-    infoLabel->setStyleSheet(QString("color: %1; font-size: 10px; font-weight: bold; font-family: 'Roboto', 'Segoe UI'; background: transparent; border: none;").arg(Colors::ON_SURFACE_VARIANT));
-    infoLabel->setAlignment(Qt::AlignCenter);
-    infoLabel->setTextFormat(Qt::RichText);
-    infoLabel->setTextInteractionFlags(Qt::TextBrowserInteraction);
-    infoLabel->setOpenExternalLinks(true);
-    sidebarInnerLayout->addWidget(infoLabel);
+    m_infoTitleLabel = new QLabel(QString("v%1<br>by <a href=\"https://github.com/sayedalimollah2602-prog\" style=\"color: %2; text-decoration: none;\">leVI</a> & <a href=\"https://github.com/raxnmint\" style=\"color: %2; text-decoration: none;\">raxnmint</a>").arg(Config::APP_VERSION).arg(Colors::ON_SURFACE_VARIANT));
+    m_infoTitleLabel->setStyleSheet(QString("color: %1; font-size: 10px; font-weight: bold; font-family: 'Roboto', 'Segoe UI'; background: transparent; border: none;").arg(Colors::ON_SURFACE_VARIANT));
+    m_infoTitleLabel->setAlignment(Qt::AlignCenter);
+    m_infoTitleLabel->setTextFormat(Qt::RichText);
+    m_infoTitleLabel->setTextInteractionFlags(Qt::TextBrowserInteraction);
+    m_infoTitleLabel->setOpenExternalLinks(true);
+    sidebarInnerLayout->addWidget(m_infoTitleLabel);
+    
+    m_infoTitleLabel->hide(); // Start collapsed
+    
     rootLayout->addWidget(m_sidebarWidget);
 
     // ──── Content Area ────
@@ -719,17 +802,26 @@ void MainWindow::initUI() {
     m_mainScrollLayout->setSpacing(10);
     
     // 1. Hero Stack — holds up to 4 trending games, shows exactly one at a time
-    m_leadingTitlesLabel = new QLabel("Leading Titles");
-    m_leadingTitlesLabel->setMaximumWidth(1200);
-    m_leadingTitlesLabel->setStyleSheet("font-size: 20px; font-weight: bold; padding-left: 0px; color: white;");
+    m_leadingTitlesLabel = new QLabel("<span style='color: #ffffff;'>Leading</span> <span style='color: #bb86fc;'>Titles</span>");
+    m_leadingTitlesLabel->setStyleSheet("font-size: 24px; font-weight: 800; padding-left: 0px; margin-bottom: 8px; font-family: 'Segoe UI';");
     
     m_heroStack = new QStackedWidget();
     m_heroStack->setFixedHeight(240);
-    m_heroStack->setMaximumWidth(1200); // Increased width to fit window more completely
     m_heroStack->setStyleSheet("background: transparent; border: none; border-radius: 12px;");
     
     m_mainScrollLayout->addWidget(m_leadingTitlesLabel, 0, Qt::AlignLeft);
     m_mainScrollLayout->addWidget(m_heroStack, 0, Qt::AlignHCenter);
+    
+    // Pagination indicators (Steam-style bars)
+    m_heroIndicators = new QWidget();
+    m_heroIndicators->setFixedHeight(20);
+    m_heroIndicators->setMaximumWidth(1200);
+    m_heroIndicators->setStyleSheet("background: transparent;");
+    m_heroIndicatorLayout = new QHBoxLayout(m_heroIndicators);
+    m_heroIndicatorLayout->setContentsMargins(0, 4, 0, 4);
+    m_heroIndicatorLayout->setSpacing(6);
+    m_heroIndicatorLayout->setAlignment(Qt::AlignCenter);
+    m_mainScrollLayout->addWidget(m_heroIndicators, 0, Qt::AlignHCenter);
     
     // We can fade crossfade manually, but QStackedWidget doesn't officially animate between indices out-of-the-box.
     // However, it solves the scrolling 'halfway' visual bug and stays exactly fixed.
@@ -755,9 +847,9 @@ void MainWindow::initUI() {
     m_mainScrollLayout->addWidget(m_trendingScroll);
     
     // 3. All Games Grid
-    m_gridTitleLabel = new QLabel("All Available Games");
-    m_gridTitleLabel->setStyleSheet("font-size: 20px; font-weight: bold; padding-left: 0px; color: white;");
-    m_mainScrollLayout->addWidget(m_gridTitleLabel);
+    m_gridTitleLabel = new QLabel("<span style='color: #ffffff;'>All Available</span> <span style='color: #bb86fc;'>Games</span>");
+    m_gridTitleLabel->setStyleSheet("font-size: 24px; font-weight: 800; padding-left: 0px; margin-top: 20px; margin-bottom: 8px; font-family: 'Segoe UI';");
+    m_mainScrollLayout->addWidget(m_gridTitleLabel, 0, Qt::AlignLeft);
     
     m_gridContainer = new QWidget();
     m_gridLayout = new QGridLayout(m_gridContainer);
@@ -860,7 +952,6 @@ void MainWindow::clearGameCards() {
 void MainWindow::displayRandomGames() {
     clearGameCards();
     m_selectedGame.clear();
-    m_btnAddToLibrary->setEnabled(false);
     cancelNameFetches();
     m_pendingNameFetchIds.clear();
 
@@ -872,7 +963,7 @@ void MainWindow::displayRandomGames() {
     m_mainScrollArea->show();
     
     // Update grid title
-    m_gridTitleLabel->setText("All Available Games");
+    m_gridTitleLabel->setText("<span style='color: #ffffff;'>All Available</span> <span style='color: #bb86fc;'>Games</span>");
 
     // Build a set of supported IDs for fast lookup
     QSet<QString> supportedIds;
@@ -968,10 +1059,15 @@ void MainWindow::displayRandomGames() {
         );
         infoLayout->addWidget(badgeLbl);
         
+        QLabel* logoLbl = new QLabel();
+        logoLbl->setFixedHeight(80);
+        logoLbl->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+        infoLayout->addWidget(logoLbl);
+        
         QLabel* nameLbl = new QLabel(featuredName);
         nameLbl->setStyleSheet(
-            "font-size: 26px; font-weight: bold; color: white; background: transparent; border: none;"
-            " font-family: 'Roboto', 'Segoe UI';"
+            "font-size: 28px; font-weight: 800; color: white; background: transparent; border: none;"
+            " font-family: 'Segoe UI';"
         );
         nameLbl->setWordWrap(true);
         infoLayout->addWidget(nameLbl);
@@ -988,6 +1084,7 @@ void MainWindow::displayRandomGames() {
         
         stack->addWidget(overlay);
         m_heroStack->addWidget(slide);
+        updateHeroIndicators();
         
         // Fetch portrait thumbnail for left side
         QString portraitUrl = QString("https://cdn.akamai.steamstatic.com/steam/apps/%1/library_600x900_2x.jpg").arg(featuredId);
@@ -1000,7 +1097,7 @@ void MainWindow::displayRandomGames() {
             if (portraitReply->error() == QNetworkReply::NoError && safePortrait) {
                 QPixmap rawPix;
                 if (rawPix.loadFromData(portraitReply->readAll())) {
-                    QPixmap rounded(130, 200);
+                    QPixmap rounded(150, 225);
                     rounded.fill(Qt::transparent);
                     QPainter p(&rounded);
                     p.setRenderHint(QPainter::Antialiasing);
@@ -1010,6 +1107,25 @@ void MainWindow::displayRandomGames() {
                     p.drawPixmap(rounded.rect(), rawPix.scaled(130, 200, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
                     p.end();
                     if (safePortrait) safePortrait->setPixmap(rounded);
+                }
+            }
+        });
+        
+        // Fetch hero logo
+        QString logoUrl = QString("https://cdn.akamai.steamstatic.com/steam/apps/%1/logo.png").arg(featuredId);
+        QNetworkRequest logoReq{QUrl(logoUrl)};
+        logoReq.setHeader(QNetworkRequest::UserAgentHeader, "SteamLuaPatcher/2.0");
+        QNetworkReply* logoReply = m_networkManager->get(logoReq);
+        QPointer<QLabel> safeLogo(logoLbl);
+        QPointer<QLabel> safeName(nameLbl);
+        connect(logoReply, &QNetworkReply::finished, this, [logoReply, safeLogo, safeName]() {
+            logoReply->deleteLater();
+            if (logoReply->error() == QNetworkReply::NoError && safeLogo && safeName) {
+                QPixmap p;
+                if (p.loadFromData(logoReply->readAll())) {
+                    QPixmap scaled = p.scaled(250, 90, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+                    safeLogo->setPixmap(scaled);
+                    safeName->hide(); // Hide text if logo exists
                 }
             }
         });
@@ -1096,7 +1212,7 @@ void MainWindow::displayRandomGames() {
         GameCard* card = new GameCard(m_gridLayout->parentWidget());
         card->setGameData(cd);
         connect(card, &GameCard::clicked, this, &MainWindow::onCardClicked);
-        m_gridLayout->addWidget(card, gridIdx / 6, gridIdx % 6);
+        m_gridLayout->addWidget(card, gridIdx / 7, gridIdx % 7);
         m_gameCards.append(card);
 
         if (m_thumbnailCache.contains(game.id)) card->setThumbnail(m_thumbnailCache[game.id]);
@@ -1148,15 +1264,13 @@ void MainWindow::onTrendingFetched(QNetworkReply* reply) {
 void MainWindow::displayLibrary() {
     clearGameCards();
     m_selectedGame.clear();
-    m_btnAddToLibrary->setEnabled(false);
-    m_btnRemove->setEnabled(false);
     
     // Hide Home-specific components
     if (m_leadingTitlesLabel) m_leadingTitlesLabel->hide();
     if (m_heroStack) m_heroStack->hide();
     if (m_trendingTitle) m_trendingTitle->hide();
     if (m_trendingScroll) m_trendingScroll->hide();
-    if (m_gridTitleLabel) m_gridTitleLabel->setText("Installed Patches");
+    if (m_gridTitleLabel) m_gridTitleLabel->setText("<span style='color: #ffffff;'>Installed</span> <span style='color: #bb86fc;'>Patches</span>");
 
     QStringList pluginDirs = Config::getAllSteamPluginDirs();
     QSet<QString> installedAppIds;
@@ -1191,7 +1305,7 @@ void MainWindow::displayLibrary() {
         GameCard* card = new GameCard(m_gridLayout->parentWidget());
         card->setGameData({{"name", name}, {"appid", appId}, {"supported", "local"}, {"hasFix", hasFix ? "true" : "false"}});
         connect(card, &GameCard::clicked, this, &MainWindow::onCardClicked);
-        m_gridLayout->addWidget(card, count / 6, count % 6);
+        m_gridLayout->addWidget(card, count / 7, count % 7);
         m_gameCards.append(card);
 
         if (m_thumbnailCache.contains(appId)) card->setThumbnail(m_thumbnailCache[appId]);
@@ -1222,7 +1336,7 @@ void MainWindow::startSync() {
         for (int i = 0; i < 12; ++i) {
             GameCard* card = new GameCard(m_gridLayout->parentWidget());
             card->setSkeleton(true);
-            m_gridLayout->addWidget(card, i / 6, i % 6);
+            m_gridLayout->addWidget(card, i / 7, i % 7);
             m_gameCards.append(card);
         }
         m_stack->setCurrentIndex(1);
@@ -1503,7 +1617,7 @@ void MainWindow::onSearchFinished(QNetworkReply* reply) {
             connect(card, &GameCard::clicked, this, &MainWindow::onCardClicked);
             
             int idx = m_gameCards.count();
-            m_gridLayout->addWidget(card, idx / 6, idx % 6);
+            m_gridLayout->addWidget(card, idx / 7, idx % 7);
             m_gameCards.append(card);
             cardMap.insert(id, card);
             changed = true;
@@ -1531,7 +1645,6 @@ void MainWindow::onSearchFinished(QNetworkReply* reply) {
 void MainWindow::displayResults(const QJsonArray& items) {
     clearGameCards();
     m_selectedGame.clear();
-    m_btnAddToLibrary->setEnabled(false);
     cancelNameFetches();
     m_pendingNameFetchIds.clear();
 
@@ -1565,7 +1678,7 @@ void MainWindow::displayResults(const QJsonArray& items) {
         GameCard* card = new GameCard(m_gridLayout->parentWidget());
         card->setGameData({{"name", name}, {"appid", appid}, {"supported", supported ? "true" : "false"}, {"hasFix", hasFix ? "true" : "false"}});
         connect(card, &GameCard::clicked, this, &MainWindow::onCardClicked);
-        m_gridLayout->addWidget(card, idx / 6, idx % 6);
+        m_gridLayout->addWidget(card, idx / 7, idx % 7);
         m_gameCards.append(card);
         
         if (m_thumbnailCache.contains(appid)) card->setThumbnail(m_thumbnailCache[appid]);
@@ -1668,16 +1781,21 @@ void MainWindow::doRemoveGame() {
 
 void MainWindow::runPatchLogic() {
     if (m_selectedGame.isEmpty()) return;
-    m_btnAddToLibrary->setEnabled(false);
     m_progress->setValue(0);
-    m_terminalDialog->clear();
-    m_terminalDialog->appendLog(QString("Initializing patch for: %1").arg(m_selectedGame["name"]), "INFO");
-    m_terminalDialog->show();
+    // Don't show terminal natively for immersive look
+    // m_terminalDialog->clear();
+    // m_terminalDialog->appendLog(QString("Initializing patch for: %1").arg(m_selectedGame["name"]), "INFO");
     
     m_dlWorker = new LuaDownloadWorker(m_selectedGame["appid"], this);
     connect(m_dlWorker, &LuaDownloadWorker::finished, this, &MainWindow::onPatchDone);
     connect(m_dlWorker, &LuaDownloadWorker::progress, [this](qint64 dl, qint64 total) {
-        if (total > 0) m_progress->setValue(static_cast<int>(dl * 100 / total));
+        if (total > 0) {
+            int pct = static_cast<int>(dl * 100 / total);
+            m_progress->setValue(pct);
+            if (m_stack->currentIndex() == 3) { // Assuming 3 is GameDetailsPage index
+                m_gameDetailsPage->updateInstallProgress(pct);
+            }
+        }
     });
     connect(m_dlWorker, &LuaDownloadWorker::status, [this](QString msg) { m_statusLabel->setText(msg); });
     connect(m_dlWorker, &LuaDownloadWorker::log, m_terminalDialog, &TerminalDialog::appendLog);
@@ -1716,7 +1834,6 @@ void MainWindow::onPatchDone(QString path) {
         if (!ok) throw std::runtime_error(lastErr.toStdString());
         QFile::remove(path);
         m_progress->hide();
-        m_btnAddToLibrary->setEnabled(true);
         m_statusLabel->setText("Patch Installed!");
         m_terminalDialog->appendLog("All operations completed successfully.", "SUCCESS");
         m_terminalDialog->setFinished(true);
@@ -1727,7 +1844,6 @@ void MainWindow::onPatchDone(QString path) {
 
 void MainWindow::onPatchError(QString error) {
     m_progress->hide();
-    m_btnAddToLibrary->setEnabled(true);
     m_statusLabel->setText("Error");
     m_terminalDialog->appendLog(QString("Process failed: %1").arg(error), "ERROR");
     m_terminalDialog->setFinished(false);
@@ -1735,7 +1851,6 @@ void MainWindow::onPatchError(QString error) {
 
 void MainWindow::runGenerateLogic() {
     if (m_selectedGame.isEmpty()) return;
-    m_btnAddToLibrary->setEnabled(false);
     m_progress->setValue(0);
     m_terminalDialog->clear();
     m_terminalDialog->appendLog(QString("Initializing generation for: %1 (%2)").arg(m_selectedGame["name"]).arg(m_selectedGame["appid"]), "INFO");
@@ -1744,7 +1859,6 @@ void MainWindow::runGenerateLogic() {
     m_genWorker = new GeneratorWorker(m_selectedGame["appid"], this);
     connect(m_genWorker, &GeneratorWorker::finished, this, [this](QString) {
         m_progress->hide();
-        m_btnAddToLibrary->setEnabled(true);
         m_statusLabel->setText("Patch Generated & Installed!");
         m_terminalDialog->setFinished(true);
         QString appId = m_selectedGame["appid"];
@@ -1756,8 +1870,6 @@ void MainWindow::runGenerateLogic() {
                 break;
             }
         }
-        m_btnAddToLibrary->setDescription(QString("Re-patch %1").arg(m_selectedGame["name"]));
-        m_btnAddToLibrary->setAccentColor(Colors::ACCENT_GREEN);
     });
     connect(m_genWorker, &GeneratorWorker::progress, [this](qint64 dl, qint64 total) {
         if (total > 0) m_progress->setValue(static_cast<int>(dl * 100 / total));
@@ -1809,13 +1921,9 @@ void MainWindow::updateModeUI() {
     m_tabSettings->setAccentColor(m_currentMode == AppMode::Settings ? Colors::PRIMARY : "transparent");
     m_tabDiscord->setAccentColor("transparent");
 
-    m_btnAddToLibrary->hide();
-    m_btnRemove->hide();
     
     if (m_currentMode == AppMode::LuaPatcher) {
-        m_btnAddToLibrary->show();
     } else if (m_currentMode == AppMode::Library) {
-        m_btnRemove->show();
     }
     
     if (m_currentMode == AppMode::Settings) {
