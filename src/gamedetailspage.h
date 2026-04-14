@@ -55,6 +55,7 @@ private:
     bool m_hasFix = false;
 
     // UI Elements
+    int m_currentLoadId = 0;
     QScrollArea* m_scrollArea;
     QWidget* m_contentWidget;
     QVBoxLayout* m_contentLayout;

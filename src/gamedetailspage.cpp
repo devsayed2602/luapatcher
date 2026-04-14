@@ -317,6 +317,9 @@ void GameDetailsPage::clear() {
         if (child->widget()) delete child->widget();
         delete child;
     }
+    
+    // Invalidate any pending network requests modifying layout
+    m_currentLoadId++;
 }
 
 void GameDetailsPage::showSkeleton() {
@@ -337,6 +340,10 @@ void GameDetailsPage::loadGame(const QString& appId, const QString& name, bool s
     m_gameName = name;
     m_supported = supported;
     m_hasFix = hasFix;
+    
+    // Invalidate pending async callbacks
+    m_currentLoadId++;
+    int loadId = m_currentLoadId;
 
     // Reset UI to skeleton state
     m_isDownloading = false;
@@ -367,8 +374,9 @@ void GameDetailsPage::loadGame(const QString& appId, const QString& name, bool s
     QNetworkRequest hReq{QUrl(heroUrl)};
     hReq.setHeader(QNetworkRequest::UserAgentHeader, "SteamLuaPatcher/2.0");
     QNetworkReply* heroReply = m_networkManager->get(hReq);
-    connect(heroReply, &QNetworkReply::finished, this, [this, heroReply]() {
+    connect(heroReply, &QNetworkReply::finished, this, [this, heroReply, loadId]() {
         heroReply->deleteLater();
+        if (m_currentLoadId != loadId) return; // Abort if aborted by back button
         if (heroReply->error() == QNetworkReply::NoError) {
             QPixmap rawPix;
             if (rawPix.loadFromData(heroReply->readAll())) {
@@ -382,8 +390,9 @@ void GameDetailsPage::loadGame(const QString& appId, const QString& name, bool s
     QNetworkRequest logoReq{QUrl(logoUrl)};
     logoReq.setHeader(QNetworkRequest::UserAgentHeader, "SteamLuaPatcher/2.0");
     QNetworkReply* logoReply = m_networkManager->get(logoReq);
-    connect(logoReply, &QNetworkReply::finished, this, [this, logoReply]() {
+    connect(logoReply, &QNetworkReply::finished, this, [this, logoReply, loadId]() {
         logoReply->deleteLater();
+        if (m_currentLoadId != loadId) return;
         if (logoReply->error() == QNetworkReply::NoError) {
             QPixmap logoPix;
             if (logoPix.loadFromData(logoReply->readAll())) {
@@ -397,7 +406,10 @@ void GameDetailsPage::loadGame(const QString& appId, const QString& name, bool s
     QNetworkRequest req(url);
     req.setHeader(QNetworkRequest::UserAgentHeader, "SteamLuaPatcher/2.0");
     QNetworkReply* reply = m_networkManager->get(req);
-    connect(reply, &QNetworkReply::finished, this, [this, reply](){ onDetailsReceived(reply); });
+    connect(reply, &QNetworkReply::finished, this, [this, reply, loadId](){ 
+        if (m_currentLoadId == loadId) onDetailsReceived(reply); 
+        else reply->deleteLater();
+    });
     
     // Give focus so Escape key works
     setFocus();
