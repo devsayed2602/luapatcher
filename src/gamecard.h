@@ -23,6 +23,9 @@ public:
     void setSelected(bool selected);
     bool isSelected() const;
 
+    void setSelectable(bool selectable);
+    bool isSelectable() const { return m_isSelectable; }
+
     QString appId() const;
     QColor getDominantColor() const;
 
@@ -34,6 +37,7 @@ public:
 
 signals:
     void clicked(GameCard* card);
+    void selectionChanged(bool selected, GameCard* card);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -49,6 +53,7 @@ private:
     QPixmap m_thumbnail;
     bool m_hasThumbnail = false;
     bool m_selected = false;
+    bool m_isSelectable = false;
     bool m_hovered = false;
     bool m_isSkeleton = false;
     QTimer* m_skeletonTimer = nullptr;

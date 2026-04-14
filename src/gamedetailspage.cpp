@@ -172,10 +172,25 @@ void GameDetailsPage::buildUI() {
     connect(m_installButton, &QPushButton::clicked, this, [this]() {
         if (m_isDownloading) return;
         m_isDownloading = true;
-        // The reset will be handled if needed, but for now we emit
+        // Reset state before new attempt
+        m_installButton->setText("Downloading...");
+        m_installProgressBar->setValue(0);
+        m_installProgressBar->show();
+        
         emit addToLibraryClicked(m_appId, m_gameName, m_hasFix);
     });
     actionLayout->addWidget(m_installButton);
+    
+    m_installProgressBar = new QProgressBar();
+    m_installProgressBar->setFixedSize(220, 4);
+    m_installProgressBar->setTextVisible(false);
+    m_installProgressBar->setStyleSheet(
+        "QProgressBar { background: #1B5E20; border: none; border-radius: 2px; }"
+        "QProgressBar::chunk { background: #00E676; border-radius: 2px; }"
+    );
+    m_installProgressBar->hide();
+    actionLayout->addWidget(m_installProgressBar);
+    
     infoLayout->addWidget(actionWidget, 1); // Takes 1/4 space
 
     m_contentLayout->addWidget(infoRow);
@@ -332,10 +347,12 @@ void GameDetailsPage::loadGame(const QString& appId, const QString& name, bool s
     
     // Update Action Button
     m_installButton->setEnabled(supported);
-    m_installButton->setText(hasFix ? "Download Patch" : "Generate Patch");
+    m_installButton->setText("Install");
+    m_installProgressBar->hide();
+    m_installProgressBar->setValue(0);
     m_installButton->setStyleSheet(
         "QPushButton {"
-        "  background: #2E7D32; color: white; font-weight: 800; font-size: 16px; border-radius: 4px; font-family: 'Segoe UI';"
+        "  background: #2E7D32; color: white; font-weight: 800; font-size: 18px; border-radius: 8px; font-family: 'Segoe UI';"
         "}"
         "QPushButton:hover {"
         "  background: #388E3C;"
@@ -506,26 +523,32 @@ void GameDetailsPage::populate(const QJsonObject& data) {
 }
 
 void GameDetailsPage::updateInstallProgress(int pct) {
-    if (pct < 100) {
-        m_isDownloading = true;
-        m_installButton->setText(QString("Downloading... %1%").arg(pct));
-        double ratio = pct / 100.0;
-        double stop2 = ratio + 0.001;
-        if (stop2 > 1.0) stop2 = 1.0;
-        
-        m_installButton->setStyleSheet(QString(
-            "QPushButton {"
-            "  background: qlineargradient(x1:0, y1:0, x2:1, y2:0, "
-            "    stop:0 #2E7D32, stop:%1 #2E7D32, stop:%2 #424242, stop:1 #424242);"
-            "  color: white; font-weight: 800; font-size: 16px; border-radius: 4px; font-family: 'Segoe UI';"
-            "}").arg(ratio).arg(stop2));
-    } else {
-        m_isDownloading = false;
-        m_installButton->setText("Installed / Restart Steam");
-        m_installButton->setStyleSheet(
-            "QPushButton {"
-            "  background: #2E7D32; color: white; font-weight: 800; font-size: 16px; border-radius: 4px; font-family: 'Segoe UI';"
-            "}"
-        );
-    }
+    if (!m_isDownloading) return;
+    m_installProgressBar->show();
+    m_installProgressBar->setValue(pct);
+}
+
+void GameDetailsPage::installFinished() {
+    m_isDownloading = false;
+    m_installProgressBar->hide();
+    m_installButton->setText("Installed");
+    m_installButton->setStyleSheet(
+        "QPushButton {"
+        "  background: #2E7D32; color: white; font-weight: 800; font-size: 18px; border-radius: 8px; font-family: 'Segoe UI';"
+        "}"
+    );
+}
+
+void GameDetailsPage::installError(const QString& err) {
+    m_isDownloading = false;
+    m_installProgressBar->hide();
+    m_installButton->setText("Error (Retry)");
+    m_installButton->setStyleSheet(
+        "QPushButton {"
+        "  background: #D32F2F; color: white; font-weight: 800; font-size: 18px; border-radius: 8px; font-family: 'Segoe UI';"
+        "}"
+        "QPushButton:hover {"
+        "  background: #F44336;"
+        "}"
+    );
 }

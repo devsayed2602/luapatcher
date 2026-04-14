@@ -80,8 +80,18 @@ bool GameCard::hasThumbnail() const {
 }
 
 void GameCard::setSelected(bool selected) {
+    if (m_selected == selected) return;
     m_selected = selected;
     update();
+    emit selectionChanged(m_selected, this);
+}
+
+void GameCard::setSelectable(bool selectable) {
+    if (m_isSelectable == selectable) return;
+    m_isSelectable = selectable;
+    if (!selectable && m_selected) {
+        setSelected(false);
+    }
 }
 
 bool GameCard::isSelected() const {
@@ -341,7 +351,12 @@ void GameCard::paintEvent(QPaintEvent* event) {
 void GameCard::mousePressEvent(QMouseEvent* event) {
     Q_UNUSED(event);
     if (m_isSkeleton) return;
-    emit clicked(this);
+    
+    if (m_isSelectable) {
+        setSelected(!m_selected);
+    } else {
+        emit clicked(this);
+    }
 }
 
 void GameCard::enterEvent(QEnterEvent* event) {

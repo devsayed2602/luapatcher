@@ -10,6 +10,7 @@
 #include <QNetworkReply>
 #include <QPixmap>
 #include <QPushButton>
+#include <QProgressBar>
 #include <QMap>
 
 // Forward declaration
@@ -36,6 +37,8 @@ private slots:
 
 public slots:
     void updateInstallProgress(int pct);
+    void installFinished();
+    void installError(const QString& err);
 
 private:
     void buildUI();
@@ -63,6 +66,7 @@ private:
     QLabel* m_gameTitleLabel;
     QLabel* m_descriptionLabel;
     QPushButton* m_installButton;
+    QProgressBar* m_installProgressBar;
     bool m_isDownloading = false;
 
     // Screenshots

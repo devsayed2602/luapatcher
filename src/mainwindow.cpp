@@ -615,47 +615,36 @@ void MainWindow::initUI() {
     connect(m_tabLibrary, &QPushButton::clicked, this, [this](){ switchMode(AppMode::Library); });
     sidebarInnerLayout->addWidget(m_tabLibrary);
     
-    sidebarInnerLayout->addSpacing(8);
-    
-    m_tabSettings = new GlassButton(MaterialIcons::Settings, " Settings", "", Colors::OUTLINE);
-    m_tabSettings->setFixedHeight(44);
-    connect(m_tabSettings, &QPushButton::clicked, this, [this](){ switchMode(AppMode::Settings); });
-    sidebarInnerLayout->addWidget(m_tabSettings);
-    
-    m_tabDiscord = new GlassButton(MaterialIcons::Discord, " Discord", "", Colors::ACCENT_BLUE);
-    m_tabDiscord->setFixedHeight(44);
-    connect(m_tabDiscord, &QPushButton::clicked, this, [this](){
-        QDesktopServices::openUrl(QUrl("https://discord.gg/your-server"));
-    });
-    sidebarInnerLayout->addWidget(m_tabDiscord);
-    
-    sidebarInnerLayout->addSpacing(8);
-    
-    // Material divider
-    QFrame* line = new QFrame();
-    line->setFrameShape(QFrame::HLine);
-    line->setFixedHeight(1);
-    line->setStyleSheet(QString("background: %1; border: none;").arg(Colors::OUTLINE_VARIANT));
-    sidebarInnerLayout->addWidget(line);
-    sidebarInnerLayout->addSpacing(4);
-    
-    m_statusLabel = new QLabel("Initializing...");
-    m_statusLabel->setStyleSheet(QString(
-        "color: %1; font-size: 11px; font-family: 'Roboto', 'Segoe UI'; background: transparent; border: none;"
-    ).arg(Colors::ON_SURFACE_VARIANT));
-    m_statusLabel->setWordWrap(true);
-    // Removed status label from sidebar as requested by user
-    // sidebarInnerLayout->addWidget(m_statusLabel);
-    
+    // Add stretch here to push the rest to the bottom
     sidebarInnerLayout->addStretch();
     
     m_btnRestart = new GlassButton(MaterialIcons::RestartAlt, " Restart Steam", "Apply Changes", Colors::PRIMARY);
     m_btnRestart->setFixedHeight(44);
     connect(m_btnRestart, &QPushButton::clicked, this, &MainWindow::doRestart);
     sidebarInnerLayout->addWidget(m_btnRestart);
+    sidebarInnerLayout->addSpacing(8);
     
-    sidebarInnerLayout->addStretch();
+    m_tabSettings = new GlassButton(MaterialIcons::Settings, " Settings", "", Colors::OUTLINE);
+    m_tabSettings->setFixedHeight(44);
+    connect(m_tabSettings, &QPushButton::clicked, this, [this](){ switchMode(AppMode::Settings); });
+    sidebarInnerLayout->addWidget(m_tabSettings);
+    sidebarInnerLayout->addSpacing(8);
     
+    // Keep internal status label instantiated but hidden as requested originally
+    m_statusLabel = new QLabel("Initializing...");
+    m_statusLabel->setStyleSheet(QString(
+        "color: %1; font-size: 11px; font-family: 'Roboto', 'Segoe UI'; background: transparent; border: none;"
+    ).arg(Colors::ON_SURFACE_VARIANT));
+    m_statusLabel->setWordWrap(true);
+    
+    m_tabDiscord = new GlassButton(MaterialIcons::Discord, " Discord", "", Colors::ACCENT_BLUE);
+    m_tabDiscord->setFixedHeight(44);
+    connect(m_tabDiscord, &QPushButton::clicked, this, [this](){
+        QDesktopServices::openUrl(QUrl("https://discord.gg/dg7zKUUQfJ"));
+    });
+    sidebarInnerLayout->addWidget(m_tabDiscord);
+    
+    sidebarInnerLayout->addSpacing(16);
     // Divider before version info
     QFrame* line2 = new QFrame();
     line2->setFrameShape(QFrame::HLine);
@@ -807,10 +796,11 @@ void MainWindow::initUI() {
     
     m_heroStack = new QStackedWidget();
     m_heroStack->setFixedHeight(240);
+    m_heroStack->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     m_heroStack->setStyleSheet("background: transparent; border: none; border-radius: 12px;");
     
     m_mainScrollLayout->addWidget(m_leadingTitlesLabel, 0, Qt::AlignLeft);
-    m_mainScrollLayout->addWidget(m_heroStack, 0, Qt::AlignHCenter);
+    m_mainScrollLayout->addWidget(m_heroStack);
     
     // Pagination indicators (Steam-style bars)
     m_heroIndicators = new QWidget();
@@ -846,10 +836,42 @@ void MainWindow::initUI() {
     m_trendingScroll->setWidget(trendContainer);
     m_mainScrollLayout->addWidget(m_trendingScroll);
     
-    // 3. All Games Grid
+    // 3. All Games Grid Header
+    m_gridHeaderWidget = new QWidget();
+    QHBoxLayout* gridHeaderLayout = new QHBoxLayout(m_gridHeaderWidget);
+    gridHeaderLayout->setContentsMargins(0, 0, 0, 0);
+
     m_gridTitleLabel = new QLabel("<span style='color: #ffffff;'>All Available</span> <span style='color: #bb86fc;'>Games</span>");
     m_gridTitleLabel->setStyleSheet("font-size: 24px; font-weight: 800; padding-left: 0px; margin-top: 20px; margin-bottom: 8px; font-family: 'Segoe UI';");
-    m_mainScrollLayout->addWidget(m_gridTitleLabel, 0, Qt::AlignLeft);
+    gridHeaderLayout->addWidget(m_gridTitleLabel, 0, Qt::AlignBottom);
+    gridHeaderLayout->addStretch();
+
+    // Action Buttons for Library mode (hidden by default)
+    m_removeSelectedBtn = new QPushButton("Remove Selected (0)");
+    m_removeSelectedBtn->setStyleSheet(
+        "QPushButton { background: rgba(255, 255, 255, 10); color: #888888; border: 1px solid rgba(255,255,255,20); border-radius: 6px; padding: 6px 16px; font-weight: 600; font-size: 13px; }"
+        "QPushButton:enabled { background: rgba(207, 102, 121, 20); color: #cf6679; border-color: rgba(207,102,121,60); }"
+        "QPushButton:enabled:hover { background: rgba(207, 102, 121, 40); border-color: rgba(207,102,121,100); }"
+    );
+    m_removeSelectedBtn->setCursor(Qt::PointingHandCursor);
+    m_removeSelectedBtn->setEnabled(false);
+    m_removeSelectedBtn->hide();
+
+    m_clearLibraryBtn = new QPushButton("Clear Library");
+    m_clearLibraryBtn->setStyleSheet(
+        "QPushButton { background: rgba(207, 102, 121, 15); color: #cf6679; border: 1px solid rgba(207,102,121,40); border-radius: 6px; padding: 6px 16px; font-weight: 600; font-size: 13px; margin-left: 8px; }"
+        "QPushButton:hover { background: rgba(207, 102, 121, 30); border-color: rgba(207,102,121,80); }"
+    );
+    m_clearLibraryBtn->setCursor(Qt::PointingHandCursor);
+    m_clearLibraryBtn->hide();
+
+    connect(m_removeSelectedBtn, &QPushButton::clicked, this, &MainWindow::onRemoveSelectedClicked);
+    connect(m_clearLibraryBtn, &QPushButton::clicked, this, &MainWindow::onClearLibraryClicked);
+
+    gridHeaderLayout->addWidget(m_removeSelectedBtn, 0, Qt::AlignBottom);
+    gridHeaderLayout->addWidget(m_clearLibraryBtn, 0, Qt::AlignBottom);
+
+    m_mainScrollLayout->addWidget(m_gridHeaderWidget);
     
     m_gridContainer = new QWidget();
     m_gridLayout = new QGridLayout(m_gridContainer);
@@ -965,6 +987,9 @@ void MainWindow::displayRandomGames() {
     // Update grid title
     m_gridTitleLabel->setText("<span style='color: #ffffff;'>All Available</span> <span style='color: #bb86fc;'>Games</span>");
 
+    if (m_removeSelectedBtn) m_removeSelectedBtn->hide();
+    if (m_clearLibraryBtn) m_clearLibraryBtn->hide();
+
     // Build a set of supported IDs for fast lookup
     QSet<QString> supportedIds;
     for (const auto& g : m_supportedGames) supportedIds.insert(g.id);
@@ -977,18 +1002,18 @@ void MainWindow::displayRandomGames() {
             for (const auto& g : m_supportedGames) {
                 if (g.id == tid) { carouselGames.append(g); break; }
             }
-            if (carouselGames.size() >= 4) break;
+            if (carouselGames.size() >= 10) break; // Fetch up to 10 candidates
         }
     }
     
     // Fallback: pick random supported games
-    if (carouselGames.size() < 4 && !m_supportedGames.isEmpty()) {
+    if (carouselGames.size() < 10 && !m_supportedGames.isEmpty()) {
         QList<GameInfo> randGames = m_supportedGames;
         auto *rng = QRandomGenerator::global();
         for (int i = randGames.size() - 1; i > 0; --i) {
             randGames.swapItemsAt(i, rng->bounded(i + 1));
         }
-        for (int i = 0; i < qMin(4 - carouselGames.size(), (int)randGames.size()); ++i) {
+        for (int i = 0; i < qMin(10 - carouselGames.size(), (int)randGames.size()); ++i) {
             carouselGames.append(randGames[i]);
         }
     }
@@ -1023,14 +1048,18 @@ void MainWindow::displayRandomGames() {
         QLabel* imgLabel = new QLabel();
         imgLabel->setStyleSheet("border-radius: 12px; border: none; background: transparent;");
         imgLabel->setScaledContents(true);
+        imgLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
         stack->addWidget(imgLabel);
         
         // Dark gradient overlay (left-to-right for portrait+text layout)
-        QWidget* overlay = new QWidget();
+        QLabel* overlay = new QLabel();
+        overlay->setObjectName("heroOverlay");
         overlay->setFixedHeight(240);
         overlay->setStyleSheet(
-            "background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 rgba(0,0,0,210), stop:0.55 rgba(0,0,0,120), stop:1 rgba(0,0,0,30));"
-            "border-radius: 12px;"
+            "#heroOverlay {"
+            "  background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 rgba(0,0,0,220), stop:0.55 rgba(0,0,0,130), stop:1 rgba(0,0,0,20));"
+            "  border-radius: 12px;"
+            "}"
         );
         
         // Horizontal layout: portrait on left, text info on right
@@ -1062,6 +1091,7 @@ void MainWindow::displayRandomGames() {
         QLabel* logoLbl = new QLabel();
         logoLbl->setFixedHeight(80);
         logoLbl->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+        logoLbl->setStyleSheet("background: transparent; border: none;");
         infoLayout->addWidget(logoLbl);
         
         QLabel* nameLbl = new QLabel(featuredName);
@@ -1115,18 +1145,37 @@ void MainWindow::displayRandomGames() {
         QString logoUrl = QString("https://cdn.akamai.steamstatic.com/steam/apps/%1/logo.png").arg(featuredId);
         QNetworkRequest logoReq{QUrl(logoUrl)};
         logoReq.setHeader(QNetworkRequest::UserAgentHeader, "SteamLuaPatcher/2.0");
+        logoReq.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+        
         QNetworkReply* logoReply = m_networkManager->get(logoReq);
         QPointer<QLabel> safeLogo(logoLbl);
         QPointer<QLabel> safeName(nameLbl);
-        connect(logoReply, &QNetworkReply::finished, this, [logoReply, safeLogo, safeName]() {
+        QPointer<QWidget> safeSlide(slide);
+        connect(logoReply, &QNetworkReply::finished, this, [this, logoReply, safeLogo, safeName, safeSlide]() {
             logoReply->deleteLater();
+            bool validLogo = false;
             if (logoReply->error() == QNetworkReply::NoError && safeLogo && safeName) {
                 QPixmap p;
-                if (p.loadFromData(logoReply->readAll())) {
-                    QPixmap scaled = p.scaled(250, 90, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+                if (p.loadFromData(logoReply->readAll()) && !p.isNull()) {
+                    QPixmap scaled = p.scaled(250, 80, Qt::KeepAspectRatio, Qt::SmoothTransformation);
                     safeLogo->setPixmap(scaled);
                     safeName->hide(); // Hide text if logo exists
+                    validLogo = true;
                 }
+            }
+            
+            // Delete the slide dynamically if it has no logo, keeping exactly up to 4 good ones
+            if (!validLogo && safeSlide) {
+                m_heroStack->removeWidget(safeSlide);
+                safeSlide->deleteLater();
+                updateHeroIndicators();
+            }
+            // Also cap total slides to 5 maximum visually
+            if (validLogo && m_heroStack->count() > 5) {
+                QWidget* excess = m_heroStack->widget(m_heroStack->count() - 1);
+                m_heroStack->removeWidget(excess);
+                excess->deleteLater();
+                updateHeroIndicators();
             }
         });
         
@@ -1138,22 +1187,15 @@ void MainWindow::displayRandomGames() {
         
         QPointer<QLabel> safeImgLabel(imgLabel);
         auto* nm = m_networkManager;
-        connect(heroReply, &QNetworkReply::finished, this, [heroReply, safeImgLabel, nm, featuredId]() {
+        connect(heroReply, &QNetworkReply::finished, this, [this, heroReply, safeImgLabel, nm, featuredId, safeSlide]() {
             heroReply->deleteLater();
             bool success = false;
             if (heroReply->error() == QNetworkReply::NoError && safeImgLabel) {
                 QPixmap rawPix;
                 if (rawPix.loadFromData(heroReply->readAll())) {
-                    QPixmap rounded(rawPix.size());
-                    rounded.fill(Qt::transparent);
-                    QPainter painter(&rounded);
-                    painter.setRenderHint(QPainter::Antialiasing);
-                    QPainterPath path;
-                    path.addRoundedRect(rounded.rect(), 35, 35);
-                    painter.setClipPath(path);
-                    painter.drawPixmap(0, 0, rawPix);
-                    
-                    if (safeImgLabel) safeImgLabel->setPixmap(rounded);
+                    if (safeImgLabel) {
+                        safeImgLabel->setPixmap(rawPix); // Scale handled by setScaledContents
+                    }
                     success = true;
                 }
             }
@@ -1162,23 +1204,29 @@ void MainWindow::displayRandomGames() {
                 QNetworkRequest fallbackReq{QUrl(fallbackUrl)};
                 fallbackReq.setHeader(QNetworkRequest::UserAgentHeader, "SteamLuaPatcher/2.0");
                 QNetworkReply* fallbackReply = nm->get(fallbackReq);
-                connect(fallbackReply, &QNetworkReply::finished, [fallbackReply, safeImgLabel]() {
+                connect(fallbackReply, &QNetworkReply::finished, this, [this, fallbackReply, safeImgLabel, safeSlide]() {
                     fallbackReply->deleteLater();
+                    bool internalSuccess = false;
                     if (fallbackReply->error() == QNetworkReply::NoError && safeImgLabel) {
                         QPixmap rawPix;
                         if (rawPix.loadFromData(fallbackReply->readAll())) {
-                            QPixmap rounded(rawPix.size());
-                            rounded.fill(Qt::transparent);
-                            QPainter painter(&rounded);
-                            painter.setRenderHint(QPainter::Antialiasing);
-                            QPainterPath path;
-                            path.addRoundedRect(rounded.rect(), 25, 25);
-                            painter.setClipPath(path);
-                            painter.drawPixmap(0, 0, rawPix);
-                            if (safeImgLabel) safeImgLabel->setPixmap(rounded);
+                            if (safeImgLabel) {
+                                safeImgLabel->setPixmap(rawPix);
+                                internalSuccess = true;
+                            }
                         }
                     }
+                    
+                    if (!internalSuccess && safeSlide) {
+                         m_heroStack->removeWidget(safeSlide);
+                         safeSlide->deleteLater();
+                         updateHeroIndicators();
+                    }
                 });
+            } else if (!success && safeSlide) {
+                 m_heroStack->removeWidget(safeSlide);
+                 safeSlide->deleteLater();
+                 updateHeroIndicators();
             }
         });
     }
@@ -1249,9 +1297,17 @@ void MainWindow::onTrendingFetched(QNetworkReply* reply) {
     m_trendingAppIds.clear();
     
     // SteamSpy returns {appid: {data...}, ...} — keys are the app IDs
-    // They come sorted by popularity already
     for (auto it = obj.begin(); it != obj.end(); ++it) {
         m_trendingAppIds.append(it.key());
+    }
+    
+    // Shuffle the Trending list using the current Date!
+    // This perfectly creates a "Game of the Day" rotating banner logic.
+    if (!m_trendingAppIds.isEmpty()) {
+        QRandomGenerator dailyRng(QDate::currentDate().dayOfYear() + QDate::currentDate().year());
+        for (int i = m_trendingAppIds.size() - 1; i > 0; --i) {
+            m_trendingAppIds.swapItemsAt(i, dailyRng.bounded(i + 1));
+        }
     }
     
     // Refresh the display if we're on the home screen
@@ -1271,6 +1327,15 @@ void MainWindow::displayLibrary() {
     if (m_trendingTitle) m_trendingTitle->hide();
     if (m_trendingScroll) m_trendingScroll->hide();
     if (m_gridTitleLabel) m_gridTitleLabel->setText("<span style='color: #ffffff;'>Installed</span> <span style='color: #bb86fc;'>Patches</span>");
+    
+    if (m_removeSelectedBtn) {
+        m_removeSelectedBtn->show();
+        m_removeSelectedBtn->setText("Remove Selected (0)");
+        m_removeSelectedBtn->setEnabled(false);
+    }
+    if (m_clearLibraryBtn) {
+        m_clearLibraryBtn->show();
+    }
 
     QStringList pluginDirs = Config::getAllSteamPluginDirs();
     QSet<QString> installedAppIds;
@@ -1304,7 +1369,8 @@ void MainWindow::displayLibrary() {
 
         GameCard* card = new GameCard(m_gridLayout->parentWidget());
         card->setGameData({{"name", name}, {"appid", appId}, {"supported", "local"}, {"hasFix", hasFix ? "true" : "false"}});
-        connect(card, &GameCard::clicked, this, &MainWindow::onCardClicked);
+        card->setSelectable(true);
+        connect(card, &GameCard::selectionChanged, this, &MainWindow::onSelectionChanged);
         m_gridLayout->addWidget(card, count / 7, count % 7);
         m_gameCards.append(card);
 
@@ -1837,6 +1903,10 @@ void MainWindow::onPatchDone(QString path) {
         m_statusLabel->setText("Patch Installed!");
         m_terminalDialog->appendLog("All operations completed successfully.", "SUCCESS");
         m_terminalDialog->setFinished(true);
+        
+        if (m_stack->currentIndex() == 3) {
+            m_gameDetailsPage->installFinished();
+        }
     } catch (const std::exception& e) {
         onPatchError(QString::fromStdString(e.what()));
     }
@@ -1847,6 +1917,10 @@ void MainWindow::onPatchError(QString error) {
     m_statusLabel->setText("Error");
     m_terminalDialog->appendLog(QString("Process failed: %1").arg(error), "ERROR");
     m_terminalDialog->setFinished(false);
+    
+    if (m_stack->currentIndex() == 3) {
+        m_gameDetailsPage->installError(error);
+    }
 }
 
 void MainWindow::runGenerateLogic() {
@@ -1861,6 +1935,11 @@ void MainWindow::runGenerateLogic() {
         m_progress->hide();
         m_statusLabel->setText("Patch Generated & Installed!");
         m_terminalDialog->setFinished(true);
+        
+        if (m_stack->currentIndex() == 3) {
+            m_gameDetailsPage->installFinished();
+        }
+        
         QString appId = m_selectedGame["appid"];
         for (GameCard* card : m_gameCards) {
             if (card->appId() == appId) {
@@ -1872,7 +1951,13 @@ void MainWindow::runGenerateLogic() {
         }
     });
     connect(m_genWorker, &GeneratorWorker::progress, [this](qint64 dl, qint64 total) {
-        if (total > 0) m_progress->setValue(static_cast<int>(dl * 100 / total));
+        if (total > 0) {
+            int pct = static_cast<int>(dl * 100 / total);
+            m_progress->setValue(pct);
+            if (m_stack->currentIndex() == 3) {
+                m_gameDetailsPage->updateInstallProgress(pct);
+            }
+        }
     });
     connect(m_genWorker, &GeneratorWorker::status, [this](QString msg) { m_statusLabel->setText(msg); });
     connect(m_genWorker, &GeneratorWorker::log, m_terminalDialog, &TerminalDialog::appendLog);
@@ -2111,3 +2196,53 @@ void MainWindow::saveNameCache() {
         file.close();
     }
 }
+
+// ---- Library Management Logic ----
+void MainWindow::onSelectionChanged(bool selected, GameCard* card) {
+    Q_UNUSED(selected);
+    Q_UNUSED(card);
+    int selectedCount = 0;
+    for (GameCard* c : m_gameCards) {
+        if (c->isSelected()) selectedCount++;
+    }
+    if (m_removeSelectedBtn) {
+        m_removeSelectedBtn->setText(QString("Remove Selected (%1)").arg(selectedCount));
+        m_removeSelectedBtn->setEnabled(selectedCount > 0);
+    }
+}
+
+void MainWindow::onRemoveSelectedClicked() {
+    QStringList toRemove;
+    for (GameCard* c : m_gameCards) {
+        if (c->isSelected()) toRemove.append(c->appId());
+    }
+    if (toRemove.isEmpty()) return;
+
+    QStringList pluginDirs = Config::getAllSteamPluginDirs();
+    for (const QString& appId : toRemove) {
+        for (const QString& dirPath : pluginDirs) {
+            QFile file(dirPath + "/" + appId + ".lua");
+            if (file.exists()) file.remove();
+        }
+    }
+    displayLibrary(); // Refresh grid live
+}
+
+void MainWindow::onClearLibraryClicked() {
+    QMessageBox::StandardButton reply = QMessageBox::warning(this, "Clear Library", 
+        "Are you absolutely sure you want to permanently delete ALL installed patches from Steam?",
+        QMessageBox::Yes | QMessageBox::No);
+    
+    if (reply == QMessageBox::Yes) {
+        QStringList pluginDirs = Config::getAllSteamPluginDirs();
+        for (const QString& dirPath : pluginDirs) {
+            QDir dir(dirPath);
+            QStringList luaFiles = dir.entryList({"*.lua"}, QDir::Files);
+            for (const QString& f : luaFiles) {
+                QFile::remove(dir.absoluteFilePath(f));
+            }
+        }
+        displayLibrary(); // Refresh grid live
+    }
+}
+

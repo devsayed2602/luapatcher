@@ -62,6 +62,9 @@ private slots:
     void onGameNameFetched(QNetworkReply* reply);
     void onThumbnailDownloaded(QNetworkReply* reply);
     void onCardClicked(GameCard* card);
+    void onSelectionChanged(bool selected, GameCard* card);
+    void onRemoveSelectedClicked();
+    void onClearLibraryClicked();
     void doAddGame();
     void runPatchLogic();
     void runGenerateLogic();
@@ -129,6 +132,9 @@ private:
     QScrollArea* m_trendingScroll;
     QHBoxLayout* m_trendingLayout;
     QLabel* m_gridTitleLabel;
+    QWidget* m_gridHeaderWidget;
+    QPushButton* m_removeSelectedBtn;
+    QPushButton* m_clearLibraryBtn;
     QWidget* m_gridContainer;
     QGridLayout* m_gridLayout;
     QList<GameCard*> m_gameCards;
