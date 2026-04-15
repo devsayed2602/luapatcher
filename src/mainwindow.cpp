@@ -392,7 +392,7 @@ void MainWindow::updateHeroIndicators() {
     // Clear existing indicators
     QLayoutItem* child;
     while ((child = m_heroIndicatorLayout->takeAt(0)) != nullptr) {
-        if (child->widget()) delete child->widget();
+        if (child->widget()) child->widget()->deleteLater();
         delete child;
     }
     
