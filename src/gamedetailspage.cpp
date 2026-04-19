@@ -2,6 +2,7 @@
 #include "glassbutton.h"
 #include "utils/colors.h"
 
+#include <QPointer>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
@@ -470,9 +471,10 @@ void GameDetailsPage::populate(const QJsonObject& data) {
         QNetworkRequest req{QUrl(url)};
         req.setHeader(QNetworkRequest::UserAgentHeader, "SteamLuaPatcher/2.0");
         QNetworkReply* imgReply = m_networkManager->get(req);
-        connect(imgReply, &QNetworkReply::finished, this, [imgReply, imgLbl]() {
+        QPointer<QLabel> safeLbl(imgLbl);
+        connect(imgReply, &QNetworkReply::finished, this, [imgReply, safeLbl]() {
             imgReply->deleteLater();
-            if (imgReply->error() == QNetworkReply::NoError && imgLbl) {
+            if (imgReply->error() == QNetworkReply::NoError && safeLbl) {
                 QPixmap rawPix;
                 if (rawPix.loadFromData(imgReply->readAll())) {
                     QPixmap rounded(420, 236);
@@ -483,7 +485,7 @@ void GameDetailsPage::populate(const QJsonObject& data) {
                     path.addRoundedRect(rounded.rect(), 8, 8);
                     p.setClipPath(path);
                     p.drawPixmap(rounded.rect(), rawPix.scaled(420, 236, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
-                    if (imgLbl) imgLbl->setPixmap(rounded);
+                    if (safeLbl) safeLbl->setPixmap(rounded);
                 }
             }
         });
