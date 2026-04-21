@@ -1207,25 +1207,72 @@ void MainWindow::initUI() {
         child->setAttribute(Qt::WA_TransparentForMouseEvents);
     }
 
-    QLabel* actHeader = new QLabel("LATEST ACTIVITY");
-    actHeader->setStyleSheet("font-size: 11px; font-weight: bold; letter-spacing: 1px; color: " + Colors::ON_SURFACE + ";");
-    rightLayout->addWidget(actHeader);
+    // ── FRIENDS SECTION ──
+    QLabel* friendsHeader = new QLabel("FRIENDS (0 ONLINE)");
+    friendsHeader->setObjectName("friendsHeader");
+    friendsHeader->setStyleSheet("font-size: 11px; font-weight: 800; letter-spacing: 1.2px; color: #8FABD4; margin-top: 15px; margin-bottom: 5px;");
+    rightLayout->addWidget(friendsHeader);
 
-    for(int j=0; j<3; j++) {
-        QWidget* actBox = new QWidget();
-        actBox->setFixedHeight(40);
-        QHBoxLayout* actL = new QHBoxLayout(actBox);
-        actL->setContentsMargins(0,0,0,0);
-        QWidget* iconBox = new QWidget();
-        iconBox->setFixedSize(24,24);
-        iconBox->setStyleSheet(QString("background: %1; border-radius: 6px;").arg(Colors::SURFACE_VARIANT));
-        QLabel* actText = new QLabel("<b>User</b> achieved something<br><span style='font-size:10px; color:" + Colors::ON_SURFACE_VARIANT + ";'>2m ago</span>");
-        actText->setStyleSheet("color: " + Colors::ON_SURFACE + "; font-size: 11px;");
-        actL->addWidget(iconBox);
-        actL->addWidget(actText);
-        rightLayout->addWidget(actBox);
+    // Scrollable Friends Area
+    QScrollArea* friendsScroll = new QScrollArea();
+    friendsScroll->setWidgetResizable(true);
+    friendsScroll->setFrameShape(QFrame::NoFrame);
+    friendsScroll->setStyleSheet("background: transparent; border: none;");
+    
+    m_friendsContainer = new QWidget();
+    m_friendsContainer->setObjectName("friendsContainer");
+    m_friendsContainer->setStyleSheet("background: transparent;");
+    m_friendsLayout = new QVBoxLayout(m_friendsContainer);
+    m_friendsLayout->setContentsMargins(0, 0, 0, 0);
+    m_friendsLayout->setSpacing(12);
+    m_friendsLayout->setAlignment(Qt::AlignTop);
+    
+    // Placeholder if no friends
+    QLabel* noFriendsLabel = new QLabel("No friends yet. Add some!");
+    noFriendsLabel->setObjectName("noFriendsLabel");
+    noFriendsLabel->setStyleSheet("color: rgba(255, 255, 255, 0.4); font-size: 12px; font-style: italic; margin: 20px;");
+    noFriendsLabel->setAlignment(Qt::AlignCenter);
+    m_friendsLayout->addWidget(noFriendsLabel);
+
+    friendsScroll->setWidget(m_friendsContainer);
+    rightLayout->addWidget(friendsScroll, 1); // Give it stretch
+
+    // ── BOTTOM ADD FRIEND BUTTON ──
+    QPushButton* addFriendBtn = new QPushButton("    ADD FRIEND");
+    addFriendBtn->setFixedHeight(45);
+    addFriendBtn->setCursor(Qt::PointingHandCursor);
+    addFriendBtn->setStyleSheet(
+        "QPushButton { "
+        "  background: #111821; "
+        "  border: 1px solid rgba(255, 255, 255, 0.1); "
+        "  border-radius: 22px; "
+        "  color: white; "
+        "  font-weight: bold; "
+        "  font-size: 13px; "
+        "  text-align: center; "
+        "} "
+        "QPushButton:hover { "
+        "  background: #1A2432; "
+        "  border: 1px solid rgba(255, 255, 255, 0.2); "
+        "}"
+    );
+    
+    // Add icon to the button
+    QHBoxLayout* btnLayout = new QHBoxLayout(addFriendBtn);
+    btnLayout->setContentsMargins(15, 0, 0, 0);
+    QLabel* btnIcon = new QLabel();
+    btnIcon->setPixmap(QIcon(":/icons/add_friend.png").pixmap(18, 18)); // Fallback if no icon
+    if (btnIcon->pixmap().isNull()) {
+        btnIcon->setText("+");
+        btnIcon->setStyleSheet("color: white; font-size: 18px; font-weight: bold;");
     }
-    rightLayout->addStretch();
+    btnLayout->addWidget(btnIcon, 0, Qt::AlignVCenter | Qt::AlignLeft);
+    btnLayout->addStretch();
+    
+    connect(addFriendBtn, &QPushButton::clicked, this, [this]() {
+        switchMode(AppMode::Social); // Go to social page to add friends
+    });
+    rightLayout->addWidget(addFriendBtn);
 
     rootLayout->addWidget(contentWidget);
     rootLayout->addWidget(m_rightPanelWidget);
@@ -2607,3 +2654,81 @@ void MainWindow::showAvatarPicker() {
 
 void MainWindow::onProfileUpdated(QNetworkReply* reply) { reply->deleteLater(); }
 void MainWindow::onAvatarUploaded(QNetworkReply* reply) { reply->deleteLater(); }
+
+void MainWindow::refreshFriendsList() {
+    if (m_isGuest || m_username.isEmpty()) return;
+    
+    QUrl url(Config::WEBSERVER_BASE_URL + "/api/social/friends");
+    QUrlQuery query;
+    query.addQueryItem("username", m_username);
+    url.setQuery(query);
+    
+    QNetworkRequest request(url);
+    QNetworkReply* reply = m_networkManager->get(request);
+    
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        reply->deleteLater();
+        if (reply->error() != QNetworkReply::NoError) return;
+        
+        QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+        QJsonArray friends = doc.array();
+        
+        // Clear current list
+        QLayoutItem* item;
+        while ((item = m_friendsLayout->takeAt(0)) != nullptr) {
+            if (item->widget()) item->widget()->deleteLater();
+            delete item;
+        }
+        
+        if (friends.isEmpty()) {
+            QLabel* noFriends = new QLabel("No friends yet. Add some!");
+            noFriends->setStyleSheet("color: rgba(255, 255, 255, 0.4); font-size: 12px; font-style: italic; margin: 20px;");
+            noFriends->setAlignment(Qt::AlignCenter);
+            m_friendsLayout->addWidget(noFriends);
+            return;
+        }
+        
+        // Update header count
+        QLabel* header = m_rightPanelWidget->findChild<QLabel*>("friendsHeader");
+        if (header) header->setText(QString("FRIENDS (%1 ONLINE)").arg(friends.size()));
+        
+        for (const QJsonValue& v : friends) {
+            QJsonObject f = v.toObject();
+            QWidget* item = new QWidget();
+            item->setFixedHeight(50);
+            QHBoxLayout* lay = new QHBoxLayout(item);
+            lay->setContentsMargins(0, 5, 0, 5);
+            lay->setSpacing(12);
+            
+            // Avatar
+            QLabel* av = new QLabel();
+            av->setFixedSize(40, 40);
+            QPixmap pix(40, 40);
+            pix.fill(Qt::transparent);
+            QPainter p(&pix);
+            p.setRenderHint(QPainter::Antialiasing);
+            p.setBrush(QColor("#2C3545"));
+            p.setPen(Qt::NoPen);
+            p.drawEllipse(0, 0, 40, 40);
+            p.setPen(Qt::white);
+            p.setFont(QFont("Segoe UI", 12, QFont::Bold));
+            p.drawText(pix.rect(), Qt::AlignCenter, f["username"].toString().left(1).toUpper());
+            p.end();
+            av->setPixmap(pix);
+            lay->addWidget(av);
+            
+            QVBoxLayout* info = new QVBoxLayout();
+            info->setSpacing(2);
+            QLabel* name = new QLabel(f["username"].toString());
+            name->setStyleSheet("color: white; font-weight: bold; font-size: 13px;");
+            QLabel* status = new QLabel("ONLINE");
+            status->setStyleSheet("color: #2ECC71; font-size: 10px; font-weight: bold;");
+            info->addWidget(name);
+            info->addWidget(status);
+            lay->addLayout(info);
+            lay->addStretch();
+            
+            m_friendsLayout->addWidget(item);
+        }
+    });
+}

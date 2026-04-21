@@ -79,6 +79,7 @@ protected:
 private slots:
     void onSyncDone(QList<GameInfo> games);
     void onSyncError(QString error);
+    void refreshFriendsList();
     void onSearchChanged(const QString& text);
     void doSearch();
     void onSearchFinished(QNetworkReply* reply);
@@ -205,6 +206,8 @@ private:
     // Sidebar
     QWidget* m_sidebarWidget;
     QWidget* m_rightPanelWidget;
+    QWidget* m_friendsContainer;
+    QVBoxLayout* m_friendsLayout;
     bool m_sidebarExpanded = false;
     QPropertyAnimation* m_sidebarAnimation;
     QTimer* m_sidebarCollapseTimer;
