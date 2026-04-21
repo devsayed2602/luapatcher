@@ -1118,9 +1118,21 @@ void MainWindow::initUI() {
     rightLayout->setContentsMargins(16, 20, 16, 20);
     rightLayout->setSpacing(10);
 
+    // Top Right Profile Box - Using a container that catches all clicks
     m_topProfileWidget = new QWidget();
-    m_topProfileWidget->setFixedHeight(175);
-    m_topProfileWidget->setStyleSheet("QWidget { background: rgba(30, 42, 58, 220); border-radius: 16px; }");
+    m_topProfileWidget->setFixedSize(240, 190);
+    m_topProfileWidget->setObjectName("topProfileCard");
+    m_topProfileWidget->setCursor(Qt::PointingHandCursor);
+    m_topProfileWidget->setStyleSheet(
+        "QWidget#topProfileCard { "
+        "  background: rgba(30, 42, 58, 220); "
+        "  border-radius: 16px; "
+        "} "
+        "QWidget#topProfileCard:hover { "
+        "  background: rgba(40, 55, 75, 240); "
+        "}"
+    );
+    m_topProfileWidget->installEventFilter(this);
     QVBoxLayout* rpLayout = new QVBoxLayout(m_topProfileWidget);
     rpLayout->setContentsMargins(16, 16, 16, 16);
     rpLayout->setSpacing(10);
@@ -1216,6 +1228,7 @@ void MainWindow::initUI() {
     achText->setAlignment(Qt::AlignCenter);
     achL->addWidget(achNum);
     achL->addWidget(achText);
+    achBox->setAttribute(Qt::WA_TransparentForMouseEvents); // Pass clicks up
     rpStatsLayout->addWidget(achBox);
 
     QWidget* folBox = new QWidget();
@@ -1233,12 +1246,16 @@ void MainWindow::initUI() {
     folText->setAlignment(Qt::AlignCenter);
     folL->addWidget(folNum);
     folL->addWidget(folText);
+    folBox->setAttribute(Qt::WA_TransparentForMouseEvents); // Pass clicks up
     rpStatsLayout->addWidget(folBox);
 
     rpLayout->addLayout(rpStatsLayout);
     rightLayout->addWidget(m_topProfileWidget);
-    m_topProfileWidget->setCursor(Qt::PointingHandCursor);
-    m_topProfileWidget->installEventFilter(this);
+    
+    // Ensure ALL children are mouse-transparent so the main widget catches the click
+    for (auto* child : m_topProfileWidget->findChildren<QWidget*>()) {
+        child->setAttribute(Qt::WA_TransparentForMouseEvents);
+    }
 
     QLabel* actHeader = new QLabel("LATEST ACTIVITY");
     actHeader->setStyleSheet("font-size: 11px; font-weight: bold; letter-spacing: 1px; color: " + Colors::ON_SURFACE + ";");
