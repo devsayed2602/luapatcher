@@ -66,7 +66,7 @@ void ProfileCard::setupUI() {
         p.setBrush(QColor("#4A70A9")); // Using the requested color for fallback
         p.setPen(Qt::NoPen);
         p.drawEllipse(8, 8, avSize - 16, avSize - 16);
-        p.setPen(Qt::White);
+        p.setPen(Qt::white);
         p.setFont(QFont("Segoe UI", 48, QFont::Bold));
         p.drawText(QRect(8, 8, avSize - 16, avSize - 16), Qt::AlignCenter, m_username.left(1).toUpper());
     }
@@ -81,7 +81,7 @@ void ProfileCard::setupUI() {
     badgePix.fill(Qt::transparent);
     QPainter bp(&badgePix);
     bp.setRenderHint(QPainter::Antialiasing);
-    bp.setBrush(Qt::Black);
+    bp.setBrush(Qt::black);
     bp.setPen(QPen(QColor("#EFECE3"), 2));
     bp.drawEllipse(1, 1, 34, 34);
     // Draw simple star
