@@ -276,7 +276,7 @@ void SocialPage::onPendingFetched() {
 
 void SocialPage::sendFriendRequest(const QString& targetUser) {
     QString url = Config::WEBSERVER_BASE_URL + "/api/social/request/send";
-    QNetworkRequest req(QUrl(url));
+    QNetworkRequest req{QUrl(url)};
     req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     
     QJsonObject body;
@@ -292,7 +292,7 @@ void SocialPage::sendFriendRequest(const QString& targetUser) {
 
 void SocialPage::acceptFriendRequest(const QString& friendUser) {
     QString url = Config::WEBSERVER_BASE_URL + "/api/social/request/accept";
-    QNetworkRequest req(QUrl(url));
+    QNetworkRequest req{QUrl(url)};
     req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     
     QJsonObject body;
