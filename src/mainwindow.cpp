@@ -173,6 +173,11 @@ MainWindow::MainWindow(QWidget* parent)
     , m_fetchingNames(false)
     , m_nameFetchSearchId(0)
     , m_hasCachedData(false)
+    , m_sidebarAvatarLabel(nullptr)
+    , m_sidebarUsernameLabel(nullptr)
+    , m_sidebarLevelLabel(nullptr)
+    , m_sidebarLevelProgress(nullptr)
+    , m_sidebarProfileWidget(nullptr)
 {
     // Retrieve username first so UI reflects it correctly (Avatar initial)
     QSettings settings("LuaPatcher", "SteamLuaPatcher");
@@ -1140,21 +1145,21 @@ void MainWindow::initUI() {
     // LVL pill + progress bar row
     QHBoxLayout* lvlLayout = new QHBoxLayout();
     lvlLayout->setSpacing(6);
-    QLabel* lvlPill = new QLabel("LVL 42");
-    lvlPill->setFixedHeight(18);
-    lvlPill->setStyleSheet("background: rgba(74, 112, 169, 0.5); border-radius: 4px; padding: 1px 8px; font-size: 10px; font-weight: bold; color: white;");
-    lvlLayout->addWidget(lvlPill);
+    m_topLvlPill = new QLabel("LVL 1");
+    m_topLvlPill->setFixedHeight(18);
+    m_topLvlPill->setStyleSheet("background: rgba(74, 112, 169, 0.5); border-radius: 4px; padding: 1px 8px; font-size: 10px; font-weight: bold; color: white;");
+    lvlLayout->addWidget(m_topLvlPill);
     // Progress bar
-    QProgressBar* xpBar = new QProgressBar();
-    xpBar->setFixedSize(50, 4);
-    xpBar->setRange(0, 100);
-    xpBar->setValue(75);
-    xpBar->setTextVisible(false);
-    xpBar->setStyleSheet(
+    m_topXpBar = new QProgressBar();
+    m_topXpBar->setFixedSize(50, 4);
+    m_topXpBar->setRange(0, 100);
+    m_topXpBar->setValue(0);
+    m_topXpBar->setTextVisible(false);
+    m_topXpBar->setStyleSheet(
         "QProgressBar { background: rgba(255,255,255,0.08); border-radius: 2px; border: none; }"
         "QProgressBar::chunk { background: white; border-radius: 2px; }"
     );
-    lvlLayout->addWidget(xpBar, 0, Qt::AlignVCenter);
+    lvlLayout->addWidget(m_topXpBar, 0, Qt::AlignVCenter);
     lvlLayout->addStretch();
     nameLayout->addLayout(lvlLayout);
     rpTopLayout->addLayout(nameLayout);
@@ -2600,6 +2605,13 @@ void MainWindow::updateXP(int amount) {
     if (m_sidebarLevelProgress) {
         m_sidebarLevelProgress->setMaximum(xpNeeded);
         m_sidebarLevelProgress->setValue(currentXP);
+    }
+    
+    // Update Top Profile UI
+    if (m_topLvlPill) m_topLvlPill->setText(QString("LVL %1").arg(currentLevel));
+    if (m_topXpBar) {
+        m_topXpBar->setMaximum(xpNeeded);
+        m_topXpBar->setValue(currentXP);
     }
 
     // Auto-sync if XP changed significantly

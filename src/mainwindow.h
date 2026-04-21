@@ -203,11 +203,11 @@ private:
     GameDetailsPage* m_gameDetailsPage;
     class SocialPage* m_socialPage;
 
-    // Sidebar
-    QWidget* m_sidebarWidget;
     QWidget* m_rightPanelWidget;
     QWidget* m_friendsContainer;
     QVBoxLayout* m_friendsLayout;
+    QLabel* m_topLvlPill = nullptr;
+    QProgressBar* m_topXpBar = nullptr;
     bool m_sidebarExpanded = false;
     QPropertyAnimation* m_sidebarAnimation;
     QTimer* m_sidebarCollapseTimer;
