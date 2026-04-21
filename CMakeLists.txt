@@ -51,6 +51,7 @@ set(SOURCES
     src/utils/colors.cpp
     src/terminaldialog.cpp
     src/onboardingdialog.cpp
+    src/customtitlebar.cpp
 )
 
 set(HEADERS
@@ -68,6 +69,7 @@ set(HEADERS
     src/config.h
     src/terminaldialog.h
     src/onboardingdialog.h
+    src/customtitlebar.h
 )
 
 # Add static plugin initialization for static builds

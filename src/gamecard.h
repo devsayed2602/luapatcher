@@ -10,6 +10,7 @@
 class GameCard : public QWidget {
     Q_OBJECT
     Q_PROPERTY(qreal hoverOpacity READ hoverOpacity WRITE setHoverOpacity)
+    Q_PROPERTY(qreal imageScale READ imageScale WRITE setImageScale)
 
 public:
     explicit GameCard(QWidget* parent = nullptr);
@@ -34,6 +35,9 @@ public:
 
     qreal hoverOpacity() const { return m_hoverOpacity; }
     void setHoverOpacity(qreal v) { m_hoverOpacity = v; update(); }
+    
+    qreal imageScale() const { return m_imageScale; }
+    void setImageScale(qreal v) { m_imageScale = v; update(); }
 
 signals:
     void clicked(GameCard* card);
@@ -62,6 +66,10 @@ private:
     QColor m_dominantColor;
     qreal m_hoverOpacity = 0.0;
     QPropertyAnimation* m_hoverAnim = nullptr;
+    
+    qreal m_imageScale = 1.05;
+    QPropertyAnimation* m_scaleAnim = nullptr;
+
     void extractDominantColor(const QPixmap& pixmap);
 };
 

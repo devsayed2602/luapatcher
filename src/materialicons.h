@@ -11,6 +11,7 @@
 class MaterialIcons {
 public:
     enum Icon {
+        Home,
         Download,
         Build,        // Wrench
         Library,      // Books
@@ -40,6 +41,7 @@ public:
         p.setBrush(color);
 
         switch (icon) {
+        case Home:       drawHome(p); break;
         case Download:   drawDownload(p); break;
         case Build:      drawBuild(p); break;
         case Library:    drawLibrary(p); break;
@@ -59,6 +61,26 @@ public:
     }
 
 private:
+    static void drawHome(QPainter& p) {
+        QPainterPath path;
+        path.moveTo(12, 3);
+        path.lineTo(3, 10);
+        path.lineTo(3, 21);
+        path.lineTo(9, 21);
+        path.lineTo(9, 14);
+        path.lineTo(15, 14);
+        path.lineTo(15, 21);
+        path.lineTo(21, 21);
+        path.lineTo(21, 10);
+        path.closeSubpath();
+        
+        QPen pen(p.brush().color(), 2.0);
+        pen.setJoinStyle(Qt::RoundJoin);
+        pen.setCapStyle(Qt::RoundCap);
+        p.setPen(pen);
+        p.setBrush(Qt::NoBrush);
+        p.drawPath(path);
+    }
     // Download arrow with tray
     static void drawDownload(QPainter& p) {
         QPainterPath path;

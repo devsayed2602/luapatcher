@@ -6,15 +6,14 @@
 #include <QScrollArea>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <QGridLayout>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QPixmap>
 #include <QPushButton>
 #include <QProgressBar>
+#include <QPropertyAnimation>
 #include <QMap>
-
-// Forward declaration
-class QPushButton;
 
 class GameDetailsPage : public QWidget {
     Q_OBJECT
@@ -44,7 +43,7 @@ private:
     void buildUI();
     void showSkeleton();
     void populate(const QJsonObject& data);
-    QWidget* createScreenshotCard(const QPixmap& pixmap);
+    void playEntranceAnimations();
 
     QNetworkAccessManager* m_networkManager;
 
@@ -54,28 +53,44 @@ private:
     bool m_supported = false;
     bool m_hasFix = false;
 
-    // UI Elements
+    // Load guard
     int m_currentLoadId = 0;
-    QScrollArea* m_scrollArea;
-    QWidget* m_contentWidget;
-    QVBoxLayout* m_contentLayout;
 
-    // Hero
-    QLabel* m_heroBanner;
+    // Main scroll
+    QScrollArea* m_scrollArea = nullptr;
+    QWidget* m_contentWidget = nullptr;
+    QVBoxLayout* m_contentLayout = nullptr;
 
-    // Info row
-    QLabel* m_gameTitleLabel;
-    QLabel* m_descriptionLabel;
-    QPushButton* m_installButton;
-    QProgressBar* m_installProgressBar;
+    // Hero banner (custom painted widget, defined in .cpp)
+    QWidget* m_heroBanner = nullptr;
+
+    // Overlay widgets (children of hero banner)
+    QPushButton* m_backButton = nullptr;
+    QWidget* m_overlayContainer = nullptr;   // Bottom overlay with title/tags/buttons
+    QWidget* m_tagContainer = nullptr;
+    QHBoxLayout* m_tagLayout = nullptr;
+    QLabel* m_heroTitleLabel = nullptr;
+    QLabel* m_heroSubtitleLabel = nullptr;
+    QPushButton* m_installButton = nullptr;
+    QPushButton* m_wishlistButton = nullptr;
+    QProgressBar* m_installProgressBar = nullptr;
     bool m_isDownloading = false;
 
+    // Below-banner content
+    QWidget* m_infoRow = nullptr;
+    QLabel* m_descriptionLabel = nullptr;
+    QWidget* m_specsCard = nullptr;
+    QVBoxLayout* m_specsLayout = nullptr;
+
     // Screenshots
-    QHBoxLayout* m_screenshotLayout;
+    QWidget* m_screenshotSection = nullptr;
+    QHBoxLayout* m_screenshotLayout = nullptr;
 
     // Features & Security
-    QVBoxLayout* m_featuresLayout;
-    QVBoxLayout* m_securityLayout;
+    QWidget* m_detailsRow = nullptr;
+    QVBoxLayout* m_featuresLayout = nullptr;
+    QGridLayout* m_featuresGrid = nullptr;
+    QVBoxLayout* m_securityLayout = nullptr;
 };
 
 #endif // GAMEDETAILSPAGE_H

@@ -12,9 +12,13 @@
 GameCard::GameCard(QWidget* parent)
     : QWidget(parent)
 {
-    setFixedSize(190, 285);
+    setFixedSize(186, 279);
     setCursor(Qt::PointingHandCursor);
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    
+    m_scaleAnim = new QPropertyAnimation(this, "imageScale", this);
+    m_scaleAnim->setDuration(1000);
+    m_scaleAnim->setEasingCurve(QEasingCurve::OutSine);
 }
 
 void GameCard::setGameData(const QMap<QString, QString>& data) {
@@ -238,12 +242,20 @@ void GameCard::paintEvent(QPaintEvent* event) {
     }
 
     if (m_hasThumbnail) {
+        painter.save();
+        QPointF center = cardRect.center();
+        painter.translate(center);
+        painter.scale(m_imageScale, m_imageScale);
+        painter.translate(-center);
+        
         // Scale proportionally to fill completely, then center-crop the excess
         QSize cardSize = cardRect.size().toSize();
         QPixmap scaled = m_thumbnail.scaled(cardSize, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
         int sx = (scaled.width() - cardSize.width()) / 2;
         int sy = (scaled.height() - cardSize.height()) / 2;
         painter.drawPixmap(cardRect.toRect(), scaled, QRect(sx, sy, cardSize.width(), cardSize.height()));
+        
+        painter.restore();
     } else if (!m_data.isEmpty()) {
         // No thumbnail yet — show skeleton shimmer instead of static gamepad icon
         QColor baseColor = Colors::toQColor(Colors::SURFACE_CONTAINER_HIGH);
@@ -373,6 +385,13 @@ void GameCard::enterEvent(QEnterEvent* event) {
     m_hoverAnim->setEndValue(1.0);
     m_hoverAnim->setEasingCurve(QEasingCurve::OutCubic);
     m_hoverAnim->start();
+    
+    m_scaleAnim->stop();
+    m_scaleAnim->setStartValue(m_imageScale);
+    m_scaleAnim->setEndValue(1.0);
+    m_scaleAnim->start();
+    
+    QWidget::enterEvent(event);
 }
 
 void GameCard::leaveEvent(QEvent* event) {
@@ -389,4 +408,11 @@ void GameCard::leaveEvent(QEvent* event) {
     m_hoverAnim->setEndValue(0.0);
     m_hoverAnim->setEasingCurve(QEasingCurve::InCubic);
     m_hoverAnim->start();
+    
+    m_scaleAnim->stop();
+    m_scaleAnim->setStartValue(m_imageScale);
+    m_scaleAnim->setEndValue(1.05);
+    m_scaleAnim->start();
+    
+    QWidget::leaveEvent(event);
 }

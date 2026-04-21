@@ -3,6 +3,7 @@
 #include "gamecard.h"
 #include "loadingspinner.h"
 #include "gamedetailspage.h"
+#include "customtitlebar.h"
 #include "materialicons.h"
 #include "workers/indexdownloadworker.h"
 #include "workers/luadownloadworker.h"
@@ -47,6 +48,64 @@
 #include <QDropEvent>
 #include <QMimeData>
 #include <QSettings>
+#include <QMouseEvent>
+
+// ==========================================
+// HeroBannerWidget Implementation
+// ==========================================
+
+HeroBannerWidget::HeroBannerWidget(QWidget* parent) : QWidget(parent), m_imageScale(1.05) {
+    m_scaleAnim = new QPropertyAnimation(this, "imageScale", this);
+    m_scaleAnim->setDuration(1000);
+    m_scaleAnim->setEasingCurve(QEasingCurve::OutSine);
+    setStyleSheet("border-radius: 12px; border: none; background: transparent;");
+}
+
+void HeroBannerWidget::setPixmap(const QPixmap& p) {
+    m_pixmap = p;
+    update();
+}
+
+void HeroBannerWidget::paintEvent(QPaintEvent* event) {
+    Q_UNUSED(event);
+    if (m_pixmap.isNull()) return;
+    QPainter p(this);
+    p.setRenderHint(QPainter::Antialiasing);
+    p.setRenderHint(QPainter::SmoothPixmapTransform);
+    QPainterPath path;
+    path.addRoundedRect(rect(), 12, 12);
+    p.setClipPath(path);
+    p.translate(rect().center());
+    p.scale(m_imageScale, m_imageScale);
+    p.translate(-rect().center());
+    QSize targetSize = rect().size();
+    QPixmap scaled = m_pixmap.scaled(targetSize, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+    int sx = qMax(0, (scaled.width() - targetSize.width()) / 2);
+    int sy = qMax(0, (scaled.height() - targetSize.height()) / 2);
+    int sw = qMin(targetSize.width(), scaled.width() - sx);
+    int sh = qMin(targetSize.height(), scaled.height() - sy);
+    p.drawPixmap(rect(), scaled, QRect(sx, sy, sw, sh));
+}
+
+void HeroBannerWidget::enterEvent(QEnterEvent* event) {
+    m_scaleAnim->stop();
+    m_scaleAnim->setStartValue(m_imageScale);
+    m_scaleAnim->setEndValue(1.0);
+    m_scaleAnim->start();
+    QWidget::enterEvent(event);
+}
+
+void HeroBannerWidget::leaveEvent(QEvent* event) {
+    m_scaleAnim->stop();
+    m_scaleAnim->setStartValue(m_imageScale);
+    m_scaleAnim->setEndValue(1.05);
+    m_scaleAnim->start();
+    QWidget::leaveEvent(event);
+}
+
+// ==========================================
+// MainWindow Implementation
+// ==========================================
 
 // ── Inline helper: a QWidget that paints a single Material icon ──
 class MaterialIconWidget : public QWidget {
@@ -119,6 +178,11 @@ MainWindow::MainWindow(QWidget* parent)
     resize(1480, 900);
     setAcceptDrops(true);
     
+    // ── Native Frameless Window Approach ──
+    // We do NOT use Qt::FramelessWindowHint here. 
+    // Instead, we let the window have its native frame but hide it using WM_NCCALCSIZE.
+    // This preserves native window behaviors like taskbar animations, snapping, and system menus.
+    
     // ── Enable Transparency for Desktop Blur ──
     setAttribute(Qt::WA_TranslucentBackground);
     
@@ -156,6 +220,13 @@ MainWindow::~MainWindow() {
     if (m_activeReply) {
         m_activeReply->abort();
         m_activeReply->deleteLater();
+    }
+    
+    // Terminate any running network downloader threads cleanly before destruction
+    if (m_syncWorker && m_syncWorker->isRunning()) {
+        m_syncWorker->requestInterruption();
+        m_syncWorker->quit();
+        m_syncWorker->wait(100);
     }
 }
 
@@ -209,9 +280,87 @@ void MainWindow::enableAcrylicBlur() {
 #endif
 }
 
-// ── Native event passthrough ──
+// ── Native event passthrough & Frameless Window Logic ──
 bool MainWindow::nativeEvent(const QByteArray &eventType, void *message, qintptr *result) {
+#ifdef Q_OS_WIN
+    MSG* msg = static_cast<MSG*>(message);
+    switch (msg->message) {
+        case WM_NCCALCSIZE: {
+            if (msg->wParam) {
+                // By returning 0 here, we tell Windows that the client area is the entire window,
+                // effectively removing the standard title bar while keeping the window "native".
+                *result = 0;
+                return true;
+            }
+            break;
+        }
+        case WM_NCHITTEST: {
+            const long border_width = 8;
+            RECT winrect;
+            GetWindowRect(msg->hwnd, &winrect);
+            long x = GET_X_LPARAM(msg->lParam);
+            long y = GET_Y_LPARAM(msg->lParam);
+
+            // 1. Resizing zones (highest priority)
+            bool left = x >= winrect.left && x < winrect.left + border_width;
+            bool right = x < winrect.right && x >= winrect.right - border_width;
+            bool top = y >= winrect.top && y < winrect.top + border_width;
+            bool bottom = y < winrect.bottom && y >= winrect.bottom - border_width;
+
+            if (left && top) { *result = HTTOPLEFT; return true; }
+            if (left && bottom) { *result = HTBOTTOMLEFT; return true; }
+            if (right && top) { *result = HTTOPRIGHT; return true; }
+            if (right && bottom) { *result = HTBOTTOMRIGHT; return true; }
+            if (left) { *result = HTLEFT; return true; }
+            if (right) { *result = HTRIGHT; return true; }
+            if (top) { *result = HTTOP; return true; }
+            if (bottom) { *result = HTBOTTOM; return true; }
+
+            // 2. Title Bar / Dragging zone
+            if (m_titleBar) {
+                // Convert screen coordinates to window-client coordinates for accurate hit testing
+                POINT pt = { x, y };
+                ScreenToClient(msg->hwnd, &pt);
+                
+                // Title bar is 40px high at the top of the window
+                if (pt.y >= 0 && pt.y <= m_titleBar->height() && pt.x >= 0 && pt.x <= width()) {
+                    // Check if it's over a button inside the title bar
+                    QPoint localPos = m_titleBar->mapFrom(this, QPoint(pt.x, pt.y));
+                    QWidget* w = m_titleBar->childAt(localPos);
+                    if (w) {
+                        if (w->objectName() == "minBtn") { *result = HTMINBUTTON; return true; }
+                        if (w->objectName() == "maxBtn") { *result = HTMAXBUTTON; return true; }
+                        if (w->objectName() == "closeBtn") { *result = HTCLOSE; return true; }
+                        // If it's another interactive widget (like a search input if we put one there later), return HTCLIENT
+                        if (qobject_cast<QPushButton*>(w) || qobject_cast<QLineEdit*>(w)) {
+                            return false; 
+                        }
+                    }
+                    *result = HTCAPTION;
+                    return true;
+                }
+            }
+            break;
+        }
+    }
+#endif
     return QMainWindow::nativeEvent(eventType, message, result);
+}
+
+void MainWindow::onTitleBarMinimize() {
+    showMinimized();
+}
+
+void MainWindow::onTitleBarMaximize() {
+    if (isMaximized()) {
+        showNormal();
+    } else {
+        showMaximized();
+    }
+}
+
+void MainWindow::onTitleBarClose() {
+    close();
 }
 
 bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
@@ -233,64 +382,28 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
             }
         }
     } else if (obj == m_sidebarWidget) {
-        if (event->type() == QEvent::Enter) {
-            expandSidebar();
-        } else if (event->type() == QEvent::Leave) {
-            m_sidebarCollapseTimer->start(150);
-        }
+        // Sidebar is always expanded — no animation
     }
     return QMainWindow::eventFilter(obj, event);
 }
 
 void MainWindow::expandSidebar() {
-    m_sidebarCollapseTimer->stop();
-    if (m_sidebarExpanded) return;
-    
-    m_sidebarExpanded = true;
-    m_sidebarAnimation->stop();
-    auto fwEffect = new QPropertyAnimation(m_sidebarWidget, "maximumWidth", this);
-    fwEffect->setDuration(200);
-    fwEffect->setEndValue(230);
-    fwEffect->setEasingCurve(QEasingCurve::OutCubic);
-    
-    m_sidebarAnimation->setEndValue(230);
-    m_sidebarAnimation->setEasingCurve(QEasingCurve::OutCubic);
-    
-    fwEffect->start(QAbstractAnimation::DeleteWhenStopped);
-    m_sidebarAnimation->start();
-    
-    if (m_appTitleLabel) m_appTitleLabel->show();
-    if (m_navTitleLabel) m_navTitleLabel->show();
-    if (m_infoTitleLabel) m_infoTitleLabel->show();
+    // Sidebar always expanded — no-op
 }
 
 void MainWindow::collapseSidebarDelayed() {
-    if (!m_sidebarExpanded) return;
-    
-    m_sidebarExpanded = false;
-    m_sidebarAnimation->stop();
-    
-    auto fwEffect = new QPropertyAnimation(m_sidebarWidget, "maximumWidth", this);
-    fwEffect->setDuration(200);
-    fwEffect->setEndValue(60);
-    fwEffect->setEasingCurve(QEasingCurve::InCubic);
-    
-    m_sidebarAnimation->setEndValue(60);
-    m_sidebarAnimation->setEasingCurve(QEasingCurve::InCubic);
-    
-    fwEffect->start(QAbstractAnimation::DeleteWhenStopped);
-    m_sidebarAnimation->start();
-    
-    if (m_appTitleLabel) m_appTitleLabel->hide();
-    if (m_navTitleLabel) m_navTitleLabel->hide();
-    if (m_infoTitleLabel) m_infoTitleLabel->hide();
+    // Sidebar always expanded — no-op
 }
 
 void MainWindow::scrollCarousel() {
-    if (m_heroStack->count() == 0 || !m_heroStack->isVisible()) return;
+    if (m_heroStack->count() <= 1 || !m_heroStack->isVisible()) return;
     
     int oldIndex = m_currentHeroIndex;
-    m_currentHeroIndex++;
+    if (oldIndex >= m_heroStack->count() || oldIndex < 0) {
+        oldIndex = 0;
+    }
+    
+    m_currentHeroIndex = oldIndex + 1;
     if (m_currentHeroIndex >= m_heroStack->count()) {
         m_currentHeroIndex = 0;
     }
@@ -298,14 +411,22 @@ void MainWindow::scrollCarousel() {
     QWidget* oldSlide = m_heroStack->widget(oldIndex);
     QWidget* newSlide = m_heroStack->widget(m_currentHeroIndex);
     
-    // Set up opacity effects for crossfade
-    auto* fadeOutEffect = new QGraphicsOpacityEffect(oldSlide);
-    fadeOutEffect->setOpacity(1.0);
-    oldSlide->setGraphicsEffect(fadeOutEffect);
+    if (!oldSlide || !newSlide || oldSlide == newSlide) return;
     
-    auto* fadeInEffect = new QGraphicsOpacityEffect(newSlide);
+    // Set up opacity effects for crossfade reusing existing if present to avoid animation conflict races
+    auto* fadeOutEffect = qobject_cast<QGraphicsOpacityEffect*>(oldSlide->graphicsEffect());
+    if (!fadeOutEffect) {
+        fadeOutEffect = new QGraphicsOpacityEffect(oldSlide);
+        oldSlide->setGraphicsEffect(fadeOutEffect);
+    }
+    fadeOutEffect->setOpacity(1.0);
+    
+    auto* fadeInEffect = qobject_cast<QGraphicsOpacityEffect*>(newSlide->graphicsEffect());
+    if (!fadeInEffect) {
+        fadeInEffect = new QGraphicsOpacityEffect(newSlide);
+        newSlide->setGraphicsEffect(fadeInEffect);
+    }
     fadeInEffect->setOpacity(0.0);
-    newSlide->setGraphicsEffect(fadeInEffect);
     
     // Switch to new slide (it's invisible at opacity 0)
     m_heroStack->setCurrentIndex(m_currentHeroIndex);
@@ -316,9 +437,6 @@ void MainWindow::scrollCarousel() {
     fadeOut->setStartValue(1.0);
     fadeOut->setEndValue(0.0);
     fadeOut->setEasingCurve(QEasingCurve::InOutQuad);
-    connect(fadeOut, &QPropertyAnimation::finished, [oldSlide]() {
-        oldSlide->setGraphicsEffect(nullptr); // Clean up
-    });
     
     // Animate fade-in of new slide
     auto* fadeIn = new QPropertyAnimation(fadeInEffect, "opacity", this);
@@ -326,9 +444,6 @@ void MainWindow::scrollCarousel() {
     fadeIn->setStartValue(0.0);
     fadeIn->setEndValue(1.0);
     fadeIn->setEasingCurve(QEasingCurve::InOutQuad);
-    connect(fadeIn, &QPropertyAnimation::finished, [newSlide]() {
-        newSlide->setGraphicsEffect(nullptr); // Clean up
-    });
     
     fadeOut->start(QAbstractAnimation::DeleteWhenStopped);
     fadeIn->start(QAbstractAnimation::DeleteWhenStopped);
@@ -340,18 +455,29 @@ void MainWindow::jumpToHeroSlide(int index) {
     if (!m_heroStack || index < 0 || index >= m_heroStack->count() || index == m_currentHeroIndex) return;
     
     int oldIndex = m_currentHeroIndex;
+    if (oldIndex >= m_heroStack->count() || oldIndex < 0) {
+        oldIndex = 0;
+    }
     m_currentHeroIndex = index;
     
     QWidget* oldSlide = m_heroStack->widget(oldIndex);
     QWidget* newSlide = m_heroStack->widget(m_currentHeroIndex);
     
-    auto* fadeOutEffect = new QGraphicsOpacityEffect(oldSlide);
-    fadeOutEffect->setOpacity(1.0);
-    oldSlide->setGraphicsEffect(fadeOutEffect);
+    if (!oldSlide || !newSlide || oldSlide == newSlide) return;
     
-    auto* fadeInEffect = new QGraphicsOpacityEffect(newSlide);
+    auto* fadeOutEffect = qobject_cast<QGraphicsOpacityEffect*>(oldSlide->graphicsEffect());
+    if (!fadeOutEffect) {
+        fadeOutEffect = new QGraphicsOpacityEffect(oldSlide);
+        oldSlide->setGraphicsEffect(fadeOutEffect);
+    }
+    fadeOutEffect->setOpacity(1.0);
+    
+    auto* fadeInEffect = qobject_cast<QGraphicsOpacityEffect*>(newSlide->graphicsEffect());
+    if (!fadeInEffect) {
+        fadeInEffect = new QGraphicsOpacityEffect(newSlide);
+        newSlide->setGraphicsEffect(fadeInEffect);
+    }
     fadeInEffect->setOpacity(0.0);
-    newSlide->setGraphicsEffect(fadeInEffect);
     
     m_heroStack->setCurrentIndex(m_currentHeroIndex);
     
@@ -360,18 +486,12 @@ void MainWindow::jumpToHeroSlide(int index) {
     fadeOut->setStartValue(1.0);
     fadeOut->setEndValue(0.0);
     fadeOut->setEasingCurve(QEasingCurve::InOutQuad);
-    connect(fadeOut, &QPropertyAnimation::finished, [oldSlide]() {
-        oldSlide->setGraphicsEffect(nullptr);
-    });
     
     auto* fadeIn = new QPropertyAnimation(fadeInEffect, "opacity", this);
     fadeIn->setDuration(300);
     fadeIn->setStartValue(0.0);
     fadeIn->setEndValue(1.0);
     fadeIn->setEasingCurve(QEasingCurve::InOutQuad);
-    connect(fadeIn, &QPropertyAnimation::finished, [newSlide]() {
-        newSlide->setGraphicsEffect(nullptr);
-    });
     
     fadeOut->start(QAbstractAnimation::DeleteWhenStopped);
     fadeIn->start(QAbstractAnimation::DeleteWhenStopped);
@@ -445,29 +565,22 @@ void MainWindow::paintEvent(QPaintEvent* event) {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
     
-    // ── Semi-transparent dark background allowing desktop blur to show through ──
-    // Very low alpha = see-through window (like File Explorer)
-    QLinearGradient bgGrad(0, 0, rect().width(), rect().height());
-    QColor color1(25, 27, 33); color1.setAlpha(60); // ~24% opacity — very see-through
-    QColor color2(18, 19, 23); color2.setAlpha(60);
-    bgGrad.setColorAt(0.0, color1);
-    bgGrad.setColorAt(1.0, color2);
-    painter.fillRect(rect(), bgGrad);
+    // ── Pitch black background ──
+    painter.fillRect(rect(), QColor(0, 0, 0));
     
-    // ── Large warm orange/red ambient glow (top right, behind the banner) ──
-    QRadialGradient glow1(rect().width() * 0.75, rect().height() * 0.2, rect().width() * 0.6);
-    QColor warmRed(220, 60, 40); // vibrant orange-red
-    warmRed.setAlpha(20); // Reduced to match lighter background
-    glow1.setColorAt(0, warmRed);
-    glow1.setColorAt(0.5, QColor(warmRed.red(), warmRed.green(), warmRed.blue(), 15));
+    // ── Subtle dark blue secondary glow (top right) ──
+    QRadialGradient glow1(rect().width() * 0.75, rect().height() * 0.25, rect().width() * 0.4);
+    QColor darkBlue = Colors::toQColor(Colors::SECONDARY);
+    darkBlue.setAlpha(12); // Extremely subtle light blue
+    glow1.setColorAt(0, darkBlue);
     glow1.setColorAt(1, QColor(0, 0, 0, 0));
     painter.fillRect(rect(), glow1);
     
-    // ── Subtle secondary glow (bottom left) ──
-    QRadialGradient glow2(rect().width() * 0.2, rect().height() * 0.8, rect().width() * 0.5);
-    QColor warmAmber(180, 100, 40);
-    warmAmber.setAlpha(12); // Reduced to match lighter background
-    glow2.setColorAt(0, warmAmber);
+    // ── Subtle dark blue secondary glow (bottom left) ──
+    QRadialGradient glow2(rect().width() * 0.2, rect().height() * 0.9, rect().width() * 0.5);
+    QColor veryDarkBlue = Colors::toQColor(Colors::TERTIARY);
+    veryDarkBlue.setAlpha(8);
+    glow2.setColorAt(0, veryDarkBlue);
     glow2.setColorAt(1, QColor(0, 0, 0, 0));
     painter.fillRect(rect(), glow2);
 }
@@ -527,25 +640,33 @@ void MainWindow::initUI() {
     QWidget* central = new QWidget(this);
     setCentralWidget(central);
     
-    QHBoxLayout* rootLayout = new QHBoxLayout(central);
+    QVBoxLayout* wrapperLayout = new QVBoxLayout(central);
+    wrapperLayout->setContentsMargins(0, 0, 0, 0);
+    wrapperLayout->setSpacing(0);
+
+    // ── Custom Title Bar ──
+    m_titleBar = new CustomTitleBar(this);
+    connect(m_titleBar, &CustomTitleBar::minimizeRequested, this, &MainWindow::onTitleBarMinimize);
+    connect(m_titleBar, &CustomTitleBar::maximizeRequested, this, &MainWindow::onTitleBarMaximize);
+    connect(m_titleBar, &CustomTitleBar::closeRequested, this, &MainWindow::onTitleBarClose);
+    wrapperLayout->addWidget(m_titleBar);
+
+    QHBoxLayout* rootLayout = new QHBoxLayout();
+    wrapperLayout->addLayout(rootLayout);
     rootLayout->setContentsMargins(0, 0, 0, 0);
     rootLayout->setSpacing(0);
     
     // ──── Material Navigation Rail (Sidebar) ────
     m_sidebarWidget = new QWidget();
-    m_sidebarWidget->setFixedWidth(60); // Starts collapsed
+    m_sidebarWidget->setFixedWidth(220);
     m_sidebarWidget->setAttribute(Qt::WA_StyledBackground);
     m_sidebarWidget->setAutoFillBackground(false);
     m_sidebarWidget->setStyleSheet(QString(
-        "background-color: transparent; border-right: 1px solid rgba(255, 255, 255, 10);"
+        "background-color: #000000; border-right: 1px solid rgba(255, 255, 255, 13);"
     ));
     m_sidebarWidget->installEventFilter(this);
     
     // Animation setup
-    m_sidebarAnimation = new QPropertyAnimation(m_sidebarWidget, "minimumWidth", this);
-    m_sidebarAnimation->setDuration(200);
-    m_sidebarAnimation->setEasingCurve(QEasingCurve::InOutQuad);
-    
     m_sidebarCollapseTimer = new QTimer(this);
     m_sidebarCollapseTimer->setSingleShot(true);
     connect(m_sidebarCollapseTimer, &QTimer::timeout, this, &MainWindow::collapseSidebarDelayed);
@@ -556,8 +677,8 @@ void MainWindow::initUI() {
     sidebarInner->setStyleSheet("background: transparent; border: none;");
     
     QVBoxLayout* sidebarInnerLayout = new QVBoxLayout(sidebarInner);
-    sidebarInnerLayout->setContentsMargins(10, 24, 16, 16);
-    sidebarInnerLayout->setSpacing(8);
+    sidebarInnerLayout->setContentsMargins(20, 24, 20, 16);
+    sidebarInnerLayout->setSpacing(12);
     
     QVBoxLayout* sidebarOuterLayout = new QVBoxLayout(m_sidebarWidget);
     sidebarOuterLayout->setContentsMargins(0, 0, 0, 0);
@@ -585,12 +706,12 @@ void MainWindow::initUI() {
     
     m_appTitleLabel = new QLabel("Lua Patcher");
     m_appTitleLabel->setStyleSheet(QString(
-        "font-size: 17px; font-weight: 700; color: %1; background: transparent; border: none; font-family: 'Roboto', 'Segoe UI';"
+        "font-size: 20px; font-weight: 700; letter-spacing: -1px; color: %1; background: transparent; border: none; font-family: 'Roboto', 'Segoe UI';"
     ).arg(Colors::ON_SURFACE));
     headerLayout->addWidget(m_appTitleLabel);
     headerLayout->addStretch();
     sidebarInnerLayout->addLayout(headerLayout);
-    sidebarInnerLayout->addSpacing(20);
+    sidebarInnerLayout->addSpacing(30);
     
     // ── Section label ──
     m_navTitleLabel = new QLabel("NAVIGATION");
@@ -598,51 +719,46 @@ void MainWindow::initUI() {
         "font-size: 10px; font-weight: 600; color: %1; letter-spacing: 1px;"
         " background: transparent; border: none; padding-left: 4px; font-family: 'Roboto', 'Segoe UI';"
     ).arg(Colors::OUTLINE));
+    m_navTitleLabel->hide();
     sidebarInnerLayout->addWidget(m_navTitleLabel);
     sidebarInnerLayout->addSpacing(4);
     
-    m_appTitleLabel->hide(); // Start collapsed
-    m_navTitleLabel->hide(); // Start collapsed
+    // m_appTitleLabel->hide();
+    // m_navTitleLabel->hide();
     
     // Navigation tabs
-    m_tabLua = new GlassButton(MaterialIcons::Download, " App Store", "", Colors::PRIMARY);
-    m_tabLua->setFixedHeight(44);
+    m_tabLua = new GlassButton(MaterialIcons::Home, " App Store", "", Colors::PRIMARY);
+    m_tabLua->setFixedHeight(45);
     connect(m_tabLua, &QPushButton::clicked, this, [this](){ switchMode(AppMode::LuaPatcher); });
     sidebarInnerLayout->addWidget(m_tabLua);
 
-    m_tabLibrary = new GlassButton(MaterialIcons::Library, " Library", "", Colors::ACCENT_GREEN);
-    m_tabLibrary->setFixedHeight(44);
+    m_tabLibrary = new GlassButton(MaterialIcons::Gamepad, " Library", "", Colors::PRIMARY);
+    m_tabLibrary->setFixedHeight(45);
     connect(m_tabLibrary, &QPushButton::clicked, this, [this](){ switchMode(AppMode::Library); });
     sidebarInnerLayout->addWidget(m_tabLibrary);
+
+    // ── Animated sidebar indicator bar ──
+    m_sidebarIndicator = new QWidget(m_sidebarWidget);
+    m_sidebarIndicator->setFixedSize(4, 24);
+    m_sidebarIndicator->setStyleSheet("background: #EFECE3; border-radius: 2px;");
+    m_sidebarIndicator->raise();
     
-    // Add stretch here to push the rest to the bottom
+    m_indicatorAnimation = new QPropertyAnimation(m_sidebarIndicator, "pos", this);
+    m_indicatorAnimation->setDuration(250);
+    m_indicatorAnimation->setEasingCurve(QEasingCurve::OutCubic);
+
     sidebarInnerLayout->addStretch();
-    
-    m_btnRestart = new GlassButton(MaterialIcons::RestartAlt, " Restart Steam", "Apply Changes", Colors::PRIMARY);
-    m_btnRestart->setFixedHeight(44);
-    connect(m_btnRestart, &QPushButton::clicked, this, &MainWindow::doRestart);
-    sidebarInnerLayout->addWidget(m_btnRestart);
-    sidebarInnerLayout->addSpacing(8);
-    
+
     m_tabSettings = new GlassButton(MaterialIcons::Settings, " Settings", "", Colors::OUTLINE);
-    m_tabSettings->setFixedHeight(44);
+    m_tabSettings->setFixedHeight(45);
     connect(m_tabSettings, &QPushButton::clicked, this, [this](){ switchMode(AppMode::Settings); });
     sidebarInnerLayout->addWidget(m_tabSettings);
     sidebarInnerLayout->addSpacing(8);
-    
-    // Keep internal status label instantiated but hidden as requested originally
+
+    // Pro Pass Promo Card
+
     m_statusLabel = new QLabel("Initializing...");
-    m_statusLabel->setStyleSheet(QString(
-        "color: %1; font-size: 11px; font-family: 'Roboto', 'Segoe UI'; background: transparent; border: none;"
-    ).arg(Colors::ON_SURFACE_VARIANT));
-    m_statusLabel->setWordWrap(true);
-    
-    m_tabDiscord = new GlassButton(MaterialIcons::Discord, " Discord", "", Colors::ACCENT_BLUE);
-    m_tabDiscord->setFixedHeight(44);
-    connect(m_tabDiscord, &QPushButton::clicked, this, [this](){
-        QDesktopServices::openUrl(QUrl("https://discord.gg/dg7zKUUQfJ"));
-    });
-    sidebarInnerLayout->addWidget(m_tabDiscord);
+    m_statusLabel->hide();
     
     sidebarInnerLayout->addSpacing(16);
     // Divider before version info
@@ -669,7 +785,7 @@ void MainWindow::initUI() {
     QWidget* contentWidget = new QWidget();
     contentWidget->setStyleSheet("background: transparent;");
     QVBoxLayout* mainLayout = new QVBoxLayout(contentWidget);
-    mainLayout->setContentsMargins(20, 20, 20, 20);
+    mainLayout->setContentsMargins(0, 40, 30, 20);
     mainLayout->setSpacing(20);
     
     // ── Top Bar (Search + Profile) ──
@@ -708,56 +824,13 @@ void MainWindow::initUI() {
     searchLayout->addWidget(refreshBtn);
     topBarLayout->addWidget(searchContainer, 1);
     
-    // Profile Widget
-    m_topProfileWidget = new QWidget();
-    m_topProfileWidget->setFixedHeight(56);
-    m_topProfileWidget->setMinimumWidth(160);
-    m_topProfileWidget->setStyleSheet(
-        "background: transparent; border: none; border-radius: 16px;"
-    );
-    QHBoxLayout* profileLayout = new QHBoxLayout(m_topProfileWidget);
-    profileLayout->setContentsMargins(12, 0, 16, 0);
-    profileLayout->setSpacing(10);
-    
-    // Circular avatar with first letter
-    QString displayName = m_username.isEmpty() ? "Guest" : m_username;
-    QChar firstLetter = displayName.at(0).toUpper();
-    
-    // Generate a deterministic vibrant color from username
-    static const QColor avatarColors[] = {
-        QColor(229, 115, 115), QColor(186, 104, 200),
-        QColor(100, 181, 246), QColor(77, 208, 225),
-        QColor(129, 199, 132), QColor(255, 183, 77),
-        QColor(240, 98, 146),  QColor(149, 117, 205),
-    };
-    int colorIdx = 0;
-    for (QChar c : displayName) colorIdx += c.unicode();
-    QColor avatarColor = avatarColors[colorIdx % 8];
-    
-    int avatarSize = 40;
-    QPixmap avatarPix(avatarSize, avatarSize);
-    avatarPix.fill(Qt::transparent);
-    QPainter avatarPainter(&avatarPix);
-    avatarPainter.setRenderHint(QPainter::Antialiasing);
-    avatarPainter.setBrush(avatarColor);
-    avatarPainter.setPen(Qt::NoPen);
-    avatarPainter.drawEllipse(0, 0, avatarSize, avatarSize);
-    avatarPainter.setPen(Qt::white);
-    QFont avatarFont("Segoe UI", 18, QFont::Bold);
-    avatarPainter.setFont(avatarFont);
-    avatarPainter.drawText(QRect(0, 0, avatarSize, avatarSize), Qt::AlignCenter, QString(firstLetter));
-    avatarPainter.end();
-    
-    QLabel* avatarLabel = new QLabel();
-    avatarLabel->setPixmap(avatarPix);
-    avatarLabel->setFixedSize(avatarSize, avatarSize);
-    avatarLabel->setStyleSheet("background: transparent; border: none;");
-    profileLayout->addWidget(avatarLabel);
-    
-    m_topUsernameLabel = new QLabel(displayName);
-    m_topUsernameLabel->setStyleSheet("font-size: 14px; font-weight: bold; color: white; background: transparent; border: none;");
-    profileLayout->addWidget(m_topUsernameLabel, 1);
-    topBarLayout->addWidget(m_topProfileWidget);
+    // Top Bar Right Side (Notifications)
+    QWidget* topActions = new QWidget();
+    QHBoxLayout* topActionsLayout = new QHBoxLayout(topActions);
+    topActionsLayout->setContentsMargins(0, 0, 0, 0);
+    MaterialIconButton* notifBtn = new MaterialIconButton(MaterialIcons::Flash, Colors::toQColor(Colors::ON_SURFACE_VARIANT), 40, topActions);
+    topActionsLayout->addWidget(notifBtn);
+    topBarLayout->addWidget(topActions);
     
     mainLayout->addWidget(topBarWidget);
     
@@ -791,13 +864,13 @@ void MainWindow::initUI() {
     m_mainScrollLayout->setSpacing(10);
     
     // 1. Hero Stack — holds up to 4 trending games, shows exactly one at a time
-    m_leadingTitlesLabel = new QLabel("<span style='color: #ffffff;'>Leading</span> <span style='color: #bb86fc;'>Titles</span>");
+    m_leadingTitlesLabel = new QLabel("<span style='color: #ffffff;'>TRENDING</span>");
     m_leadingTitlesLabel->setStyleSheet("font-size: 24px; font-weight: 800; padding-left: 0px; margin-bottom: 8px; font-family: 'Segoe UI';");
     
     m_heroStack = new QStackedWidget();
-    m_heroStack->setFixedHeight(240);
+    m_heroStack->setFixedHeight(320);
     m_heroStack->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    m_heroStack->setStyleSheet("background: transparent; border: none; border-radius: 12px;");
+    m_heroStack->setStyleSheet("background: transparent; border: none; border-radius: 25px;");
     
     m_mainScrollLayout->addWidget(m_leadingTitlesLabel, 0, Qt::AlignLeft);
     m_mainScrollLayout->addWidget(m_heroStack);
@@ -841,8 +914,8 @@ void MainWindow::initUI() {
     QHBoxLayout* gridHeaderLayout = new QHBoxLayout(m_gridHeaderWidget);
     gridHeaderLayout->setContentsMargins(0, 0, 0, 0);
 
-    m_gridTitleLabel = new QLabel("<span style='color: #ffffff;'>All Available</span> <span style='color: #bb86fc;'>Games</span>");
-    m_gridTitleLabel->setStyleSheet("font-size: 24px; font-weight: 800; padding-left: 0px; margin-top: 20px; margin-bottom: 8px; font-family: 'Segoe UI';");
+    m_gridTitleLabel = new QLabel("<span style='color: #ffffff;'>GAME STORE</span>");
+    m_gridTitleLabel->setStyleSheet("font-size: 24px; font-weight: 800; padding-left: 0px; margin-bottom: 8px; font-family: 'Segoe UI';");
     gridHeaderLayout->addWidget(m_gridTitleLabel, 0, Qt::AlignBottom);
     gridHeaderLayout->addStretch();
 
@@ -875,7 +948,7 @@ void MainWindow::initUI() {
     
     m_gridContainer = new QWidget();
     m_gridLayout = new QGridLayout(m_gridContainer);
-    m_gridLayout->setContentsMargins(0, 8, 0, 0); 
+    m_gridLayout->setContentsMargins(0, 0, 0, 0); 
     m_gridLayout->setSpacing(12); // Optimized for 190px cards
     m_gridLayout->setAlignment(Qt::AlignLeft | Qt::AlignTop);
     m_mainScrollLayout->addWidget(m_gridContainer);
@@ -942,9 +1015,164 @@ void MainWindow::initUI() {
     m_progress->hide();
     mainLayout->addWidget(m_progress);
     
+    // ──Right Panel ──
+    m_rightPanelWidget = new QWidget();
+    m_rightPanelWidget->setFixedWidth(280);
+    m_rightPanelWidget->setStyleSheet("background: rgba(255, 255, 255, 5); border-left: 1px solid rgba(255, 255, 255, 13);");
+    QVBoxLayout* rightLayout = new QVBoxLayout(m_rightPanelWidget);
+    rightLayout->setContentsMargins(16, 20, 16, 20);
+    rightLayout->setSpacing(10);
+
+    m_topProfileWidget = new QWidget();
+    m_topProfileWidget->setFixedHeight(175);
+    m_topProfileWidget->setStyleSheet("QWidget { background: rgba(30, 42, 58, 220); border-radius: 16px; }");
+    QVBoxLayout* rpLayout = new QVBoxLayout(m_topProfileWidget);
+    rpLayout->setContentsMargins(16, 16, 16, 16);
+    rpLayout->setSpacing(10);
+
+    // -- Profile top section: avatar centered, name + lvl to the right --
+    QHBoxLayout* rpTopLayout = new QHBoxLayout();
+    rpTopLayout->setSpacing(14);
+    rpTopLayout->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    QString displayName = m_username.isEmpty() ? "Xenon_Hunter" : m_username;
+    QChar firstLetter = displayName.at(0).toUpper();
+
+    // Avatar: 64x64 with white ring and green online dot (matching image 2)
+    int avSz = 64;
+    QWidget* avatarContainer = new QWidget();
+    avatarContainer->setFixedSize(avSz + 4, avSz + 4);
+    avatarContainer->setStyleSheet("background: transparent;");
+    QPixmap avatarPix(avSz + 4, avSz + 4);
+    avatarPix.fill(Qt::transparent);
+    QPainter avatarPainter(&avatarPix);
+    avatarPainter.setRenderHint(QPainter::Antialiasing);
+    // White outer ring
+    avatarPainter.setPen(QPen(QColor(180, 190, 200), 2));
+    avatarPainter.setBrush(Qt::NoBrush);
+    avatarPainter.drawEllipse(1, 1, avSz + 1, avSz + 1);
+    // Inner filled circle
+    avatarPainter.setBrush(QColor("#8FABD4"));
+    avatarPainter.setPen(Qt::NoPen);
+    avatarPainter.drawEllipse(3, 3, avSz - 2, avSz - 2);
+    // Letter
+    avatarPainter.setPen(QColor(255, 255, 255));
+    QFont avatarFont("Segoe UI", 22, QFont::Bold);
+    avatarPainter.setFont(avatarFont);
+    avatarPainter.drawText(QRect(3, 3, avSz - 2, avSz - 2), Qt::AlignCenter, QString(firstLetter));
+    // Green online dot (bottom-right, matching image 2)
+    avatarPainter.setBrush(QColor("#2ECC71"));
+    avatarPainter.setPen(QPen(QColor(30, 42, 58), 3));
+    avatarPainter.drawEllipse(44, 44, 16, 16);
+    avatarPainter.end();
+    QLabel* avatarLabel = new QLabel(avatarContainer);
+    avatarLabel->setPixmap(avatarPix);
+    avatarLabel->setGeometry(0, 0, avSz + 4, avSz + 4);
+    rpTopLayout->addWidget(avatarContainer);
+
+    // Name + LVL pill to the right of avatar
+    QVBoxLayout* nameLayout = new QVBoxLayout();
+    nameLayout->setSpacing(6);
+    nameLayout->setAlignment(Qt::AlignVCenter);
+    m_topUsernameLabel = new QLabel(displayName);
+    m_topUsernameLabel->setStyleSheet("font-size: 15px; font-weight: bold; color: white; background: transparent;");
+    nameLayout->addWidget(m_topUsernameLabel);
+
+    // LVL pill + progress bar row
+    QHBoxLayout* lvlLayout = new QHBoxLayout();
+    lvlLayout->setSpacing(6);
+    QLabel* lvlPill = new QLabel("LVL 42");
+    lvlPill->setFixedHeight(18);
+    lvlPill->setStyleSheet("background: rgba(74, 112, 169, 0.5); border-radius: 4px; padding: 1px 8px; font-size: 10px; font-weight: bold; color: white;");
+    lvlLayout->addWidget(lvlPill);
+    // Progress bar
+    QProgressBar* xpBar = new QProgressBar();
+    xpBar->setFixedSize(50, 4);
+    xpBar->setRange(0, 100);
+    xpBar->setValue(75);
+    xpBar->setTextVisible(false);
+    xpBar->setStyleSheet(
+        "QProgressBar { background: rgba(255,255,255,0.08); border-radius: 2px; border: none; }"
+        "QProgressBar::chunk { background: white; border-radius: 2px; }"
+    );
+    lvlLayout->addWidget(xpBar, 0, Qt::AlignVCenter);
+    lvlLayout->addStretch();
+    nameLayout->addLayout(lvlLayout);
+    rpTopLayout->addLayout(nameLayout);
+    rpTopLayout->addStretch();
+    rpLayout->addLayout(rpTopLayout);
+
+    QHBoxLayout* rpStatsLayout = new QHBoxLayout();
+    rpStatsLayout->setSpacing(8);
+    QWidget* achBox = new QWidget();
+    achBox->setFixedHeight(65);
+    achBox->setStyleSheet("background: #2C3545; border-radius: 12px;");
+    QVBoxLayout* achL = new QVBoxLayout(achBox);
+    achL->setAlignment(Qt::AlignCenter);
+    achL->setContentsMargins(0, 0, 0, 0);
+    achL->setSpacing(4);
+    QLabel* achNum = new QLabel("128");
+    achNum->setStyleSheet("color: white; font-size: 14px; font-weight: 900; background: transparent;");
+    achNum->setAlignment(Qt::AlignCenter);
+    QLabel* achText = new QLabel("ACHIEVEMENTS");
+    achText->setStyleSheet(QString("color: %1; font-size: 9px; font-weight: bold; background: transparent;").arg(Colors::ON_SURFACE_VARIANT));
+    achText->setAlignment(Qt::AlignCenter);
+    achL->addWidget(achNum);
+    achL->addWidget(achText);
+    rpStatsLayout->addWidget(achBox);
+
+    QWidget* folBox = new QWidget();
+    folBox->setFixedHeight(65);
+    folBox->setStyleSheet("background: #2C3545; border-radius: 12px;");
+    QVBoxLayout* folL = new QVBoxLayout(folBox);
+    folL->setAlignment(Qt::AlignCenter);
+    folL->setContentsMargins(0, 0, 0, 0);
+    folL->setSpacing(4);
+    QLabel* folNum = new QLabel("1.2K");
+    folNum->setStyleSheet("color: white; font-size: 14px; font-weight: 900; background: transparent;");
+    folNum->setAlignment(Qt::AlignCenter);
+    QLabel* folText = new QLabel("FOLLOWERS");
+    folText->setStyleSheet(QString("color: %1; font-size: 9px; font-weight: bold; background: transparent;").arg(Colors::ON_SURFACE_VARIANT));
+    folText->setAlignment(Qt::AlignCenter);
+    folL->addWidget(folNum);
+    folL->addWidget(folText);
+    rpStatsLayout->addWidget(folBox);
+
+    rpLayout->addLayout(rpStatsLayout);
+    rightLayout->addWidget(m_topProfileWidget);
+
+    QLabel* actHeader = new QLabel("LATEST ACTIVITY");
+    actHeader->setStyleSheet("font-size: 11px; font-weight: bold; letter-spacing: 1px; color: " + Colors::ON_SURFACE + ";");
+    rightLayout->addWidget(actHeader);
+
+    for(int j=0; j<3; j++) {
+        QWidget* actBox = new QWidget();
+        actBox->setFixedHeight(40);
+        QHBoxLayout* actL = new QHBoxLayout(actBox);
+        actL->setContentsMargins(0,0,0,0);
+        QWidget* iconBox = new QWidget();
+        iconBox->setFixedSize(24,24);
+        iconBox->setStyleSheet(QString("background: %1; border-radius: 6px;").arg(Colors::SURFACE_VARIANT));
+        QLabel* actText = new QLabel("<b>User</b> achieved something<br><span style='font-size:10px; color:" + Colors::ON_SURFACE_VARIANT + ";'>2m ago</span>");
+        actText->setStyleSheet("color: " + Colors::ON_SURFACE + "; font-size: 11px;");
+        actL->addWidget(iconBox);
+        actL->addWidget(actText);
+        rightLayout->addWidget(actBox);
+    }
+    rightLayout->addStretch();
+
     rootLayout->addWidget(contentWidget);
+    rootLayout->addWidget(m_rightPanelWidget);
     m_terminalDialog = new TerminalDialog(this);
     updateModeUI();
+    // Defer indicator positioning until layout is finalized (mapTo needs valid geometry)
+    QTimer::singleShot(100, this, [this]() {
+        if (m_sidebarIndicator && m_tabLua) {
+            QPoint tabPos = m_tabLua->mapTo(m_sidebarWidget, QPoint(0, 0));
+            int indicatorY = tabPos.y() + (m_tabLua->height() - m_sidebarIndicator->height()) / 2;
+            m_sidebarIndicator->move(4, indicatorY);
+            m_sidebarIndicator->show();
+        }
+    });
 }
 
 void MainWindow::clearGameCards() {
@@ -985,7 +1213,7 @@ void MainWindow::displayRandomGames() {
     m_mainScrollArea->show();
     
     // Update grid title
-    m_gridTitleLabel->setText("<span style='color: #ffffff;'>All Available</span> <span style='color: #bb86fc;'>Games</span>");
+    m_gridTitleLabel->setText("<span style='color: #ffffff;'>GAME STORE</span>");
 
     if (m_removeSelectedBtn) m_removeSelectedBtn->hide();
     if (m_clearLibraryBtn) m_clearLibraryBtn->hide();
@@ -1035,157 +1263,74 @@ void MainWindow::displayRandomGames() {
         }
         
         QWidget* slide = new QWidget();
-        slide->setFixedHeight(240);
+        slide->setFixedHeight(320);
         slide->setCursor(Qt::PointingHandCursor);
         slide->setProperty("isHeroSlide", true);
         slide->setProperty("gameAppId", featuredId);
         slide->installEventFilter(this);
         
-        QStackedLayout* stack = new QStackedLayout(slide);
-        stack->setStackingMode(QStackedLayout::StackAll);
-        stack->setContentsMargins(0,0,0,0);
+        QVBoxLayout* slideLayout = new QVBoxLayout(slide);
+        slideLayout->setContentsMargins(0, 0, 0, 0);
         
-        QLabel* imgLabel = new QLabel();
-        imgLabel->setStyleSheet("border-radius: 12px; border: none; background: transparent;");
-        imgLabel->setScaledContents(true);
-        imgLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
-        stack->addWidget(imgLabel);
+        // Background image layer (Main container for the slide)
+        HeroBannerWidget* imgLabel = new HeroBannerWidget();
+        imgLabel->setFixedHeight(320);
+        slideLayout->addWidget(imgLabel);
         
-        // Dark gradient overlay (left-to-right for portrait+text layout)
-        QLabel* overlay = new QLabel();
+        // Gradient scrim overlay (vertical: transparent top → dark bottom)
+        // Must be QFrame to support stylesheet background colors naturally
+        QFrame* overlay = new QFrame(imgLabel);
         overlay->setObjectName("heroOverlay");
-        overlay->setFixedHeight(240);
         overlay->setStyleSheet(
             "#heroOverlay {"
-            "  background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 rgba(0,0,0,220), stop:0.55 rgba(0,0,0,130), stop:1 rgba(0,0,0,20));"
+            "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(0,0,0,0), stop:0.5 rgba(0,0,0,30), stop:1 rgba(0,0,0,217));"
             "  border-radius: 12px;"
             "}"
         );
         
-        // Horizontal layout: portrait on left, text info on right
-        QHBoxLayout* heroLayout = new QHBoxLayout(overlay);
-        heroLayout->setContentsMargins(20, 15, 20, 15);
-        heroLayout->setSpacing(24);
+        // Make overlay exactly cover the imgLabel
+        QVBoxLayout* imgLayout = new QVBoxLayout(imgLabel);
+        imgLayout->setContentsMargins(0, 0, 0, 0);
+        imgLayout->addWidget(overlay);
         
-        // Portrait thumbnail (left side)
-        QLabel* portraitLabel = new QLabel();
-        portraitLabel->setFixedSize(130, 200);
-        portraitLabel->setStyleSheet(
-            "background: rgba(255,255,255,8); border: 1px solid rgba(255,255,255,15); border-radius: 8px;"
-        );
-        portraitLabel->setScaledContents(true);
-        heroLayout->addWidget(portraitLabel);
+        // Text content anchored to bottom-left
+        QVBoxLayout* heroLayout = new QVBoxLayout(overlay);
+        heroLayout->setContentsMargins(35, 20, 35, 25);
+        heroLayout->setSpacing(0);
         
-        // Game info column
-        QVBoxLayout* infoLayout = new QVBoxLayout();
-        infoLayout->setSpacing(6);
-        infoLayout->addStretch(1);
+        // Push everything to the bottom
+        heroLayout->addStretch(1);
         
-        QLabel* badgeLbl = new QLabel(QString::fromUtf8("\xe2\x98\x85 FEATURED"));
-        badgeLbl->setStyleSheet(
-            "font-size: 11px; font-weight: 700; color: #FFB74D; letter-spacing: 2px;"
-            " background: transparent; border: none; font-family: 'Roboto', 'Segoe UI';"
-        );
-        infoLayout->addWidget(badgeLbl);
-        
-        QLabel* logoLbl = new QLabel();
-        logoLbl->setFixedHeight(80);
-        logoLbl->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-        logoLbl->setStyleSheet("background: transparent; border: none;");
-        infoLayout->addWidget(logoLbl);
-        
-        QLabel* nameLbl = new QLabel(featuredName);
+        // Game title - large bold white text
+        QLabel* nameLbl = new QLabel(featuredName.toUpper());
         nameLbl->setStyleSheet(
-            "font-size: 28px; font-weight: 800; color: white; background: transparent; border: none;"
-            " font-family: 'Segoe UI';"
+            "font-size: 42px; font-weight: 900; color: #FFFFFF; background: transparent; border: none;"
+            " font-family: 'Segoe UI'; letter-spacing: -1px;"
         );
         nameLbl->setWordWrap(true);
-        infoLayout->addWidget(nameLbl);
+        nameLbl->setMaximumWidth(700);
+        heroLayout->addWidget(nameLbl);
         
-        QLabel* idLbl = new QLabel(QString("App ID: %1").arg(featuredId));
-        idLbl->setStyleSheet(
-            "font-size: 13px; color: rgba(255,255,255,140); background: transparent; border: none;"
-            " font-family: 'Roboto', 'Segoe UI';"
+        // Subtitle with App ID
+        QLabel* subtitleLbl = new QLabel(QString("App ID: %1").arg(featuredId));
+        subtitleLbl->setStyleSheet(
+            "font-size: 14px; font-weight: 500; color: #8FABD4; background: transparent; border: none;"
+            " font-family: 'Segoe UI'; margin-top: 6px;"
         );
-        infoLayout->addWidget(idLbl);
-        infoLayout->addStretch(1);
+        heroLayout->addWidget(subtitleLbl);
         
-        heroLayout->addLayout(infoLayout, 1);
-        
-        stack->addWidget(overlay);
         m_heroStack->addWidget(slide);
         updateHeroIndicators();
-        
-        // Fetch portrait thumbnail for left side
-        QString portraitUrl = QString("https://cdn.akamai.steamstatic.com/steam/apps/%1/library_600x900_2x.jpg").arg(featuredId);
-        QNetworkRequest portraitReq{QUrl(portraitUrl)};
-        portraitReq.setHeader(QNetworkRequest::UserAgentHeader, "SteamLuaPatcher/2.0");
-        QNetworkReply* portraitReply = m_networkManager->get(portraitReq);
-        QPointer<QLabel> safePortrait(portraitLabel);
-        connect(portraitReply, &QNetworkReply::finished, this, [portraitReply, safePortrait]() {
-            portraitReply->deleteLater();
-            if (portraitReply->error() == QNetworkReply::NoError && safePortrait) {
-                QPixmap rawPix;
-                if (rawPix.loadFromData(portraitReply->readAll())) {
-                    QPixmap rounded(150, 225);
-                    rounded.fill(Qt::transparent);
-                    QPainter p(&rounded);
-                    p.setRenderHint(QPainter::Antialiasing);
-                    QPainterPath clipPath;
-                    clipPath.addRoundedRect(rounded.rect(), 8, 8);
-                    p.setClipPath(clipPath);
-                    p.drawPixmap(rounded.rect(), rawPix.scaled(130, 200, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
-                    p.end();
-                    if (safePortrait) safePortrait->setPixmap(rounded);
-                }
-            }
-        });
-        
-        // Fetch hero logo
-        QString logoUrl = QString("https://cdn.akamai.steamstatic.com/steam/apps/%1/logo.png").arg(featuredId);
-        QNetworkRequest logoReq{QUrl(logoUrl)};
-        logoReq.setHeader(QNetworkRequest::UserAgentHeader, "SteamLuaPatcher/2.0");
-        logoReq.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
-        
-        QNetworkReply* logoReply = m_networkManager->get(logoReq);
-        QPointer<QLabel> safeLogo(logoLbl);
-        QPointer<QLabel> safeName(nameLbl);
-        QPointer<QWidget> safeSlide(slide);
-        connect(logoReply, &QNetworkReply::finished, this, [this, logoReply, safeLogo, safeName, safeSlide]() {
-            logoReply->deleteLater();
-            bool validLogo = false;
-            if (logoReply->error() == QNetworkReply::NoError && safeLogo && safeName) {
-                QPixmap p;
-                if (p.loadFromData(logoReply->readAll()) && !p.isNull()) {
-                    QPixmap scaled = p.scaled(250, 80, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-                    safeLogo->setPixmap(scaled);
-                    safeName->hide(); // Hide text if logo exists
-                    validLogo = true;
-                }
-            }
-            
-            // Delete the slide dynamically if it has no logo, keeping exactly up to 4 good ones
-            if (!validLogo && safeSlide) {
-                m_heroStack->removeWidget(safeSlide);
-                safeSlide->deleteLater();
-                updateHeroIndicators();
-            }
-            // Also cap total slides to 5 maximum visually
-            if (validLogo && m_heroStack->count() > 5) {
-                QWidget* excess = m_heroStack->widget(m_heroStack->count() - 1);
-                m_heroStack->removeWidget(excess);
-                excess->deleteLater();
-                updateHeroIndicators();
-            }
-        });
-        
+
         // Fetch high-quality hero image for background, with fallback to low-res header
         QString heroUrl = QString("https://cdn.akamai.steamstatic.com/steam/apps/%1/library_hero.jpg").arg(featuredId);
         QNetworkRequest req{QUrl(heroUrl)};
         req.setHeader(QNetworkRequest::UserAgentHeader, "SteamLuaPatcher/2.0");
+        req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
         QNetworkReply* heroReply = m_networkManager->get(req);
         
-        QPointer<QLabel> safeImgLabel(imgLabel);
+        QPointer<HeroBannerWidget> safeImgLabel(imgLabel);
+        QPointer<QWidget> safeSlide(slide);
         auto* nm = m_networkManager;
         connect(heroReply, &QNetworkReply::finished, this, [this, heroReply, safeImgLabel, nm, featuredId, safeSlide]() {
             heroReply->deleteLater();
@@ -1193,9 +1338,7 @@ void MainWindow::displayRandomGames() {
             if (heroReply->error() == QNetworkReply::NoError && safeImgLabel) {
                 QPixmap rawPix;
                 if (rawPix.loadFromData(heroReply->readAll())) {
-                    if (safeImgLabel) {
-                        safeImgLabel->setPixmap(rawPix); // Scale handled by setScaledContents
-                    }
+                    safeImgLabel->setPixmap(rawPix);
                     success = true;
                 }
             }
@@ -1203,6 +1346,7 @@ void MainWindow::displayRandomGames() {
                 QString fallbackUrl = QString("https://cdn.akamai.steamstatic.com/steam/apps/%1/header.jpg").arg(featuredId);
                 QNetworkRequest fallbackReq{QUrl(fallbackUrl)};
                 fallbackReq.setHeader(QNetworkRequest::UserAgentHeader, "SteamLuaPatcher/2.0");
+                fallbackReq.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
                 QNetworkReply* fallbackReply = nm->get(fallbackReq);
                 connect(fallbackReply, &QNetworkReply::finished, this, [this, fallbackReply, safeImgLabel, safeSlide]() {
                     fallbackReply->deleteLater();
@@ -1210,10 +1354,8 @@ void MainWindow::displayRandomGames() {
                     if (fallbackReply->error() == QNetworkReply::NoError && safeImgLabel) {
                         QPixmap rawPix;
                         if (rawPix.loadFromData(fallbackReply->readAll())) {
-                            if (safeImgLabel) {
-                                safeImgLabel->setPixmap(rawPix);
-                                internalSuccess = true;
-                            }
+                            safeImgLabel->setPixmap(rawPix);
+                            internalSuccess = true;
                         }
                     }
                     
@@ -1229,6 +1371,9 @@ void MainWindow::displayRandomGames() {
                  updateHeroIndicators();
             }
         });
+
+
+
     }
     
     // Start slider timer to rotate every 5 seconds
@@ -1260,7 +1405,7 @@ void MainWindow::displayRandomGames() {
         GameCard* card = new GameCard(m_gridLayout->parentWidget());
         card->setGameData(cd);
         connect(card, &GameCard::clicked, this, &MainWindow::onCardClicked);
-        m_gridLayout->addWidget(card, gridIdx / 7, gridIdx % 7);
+        m_gridLayout->addWidget(card, gridIdx  / 5, gridIdx  % 5);
         m_gameCards.append(card);
 
         if (m_thumbnailCache.contains(game.id)) card->setThumbnail(m_thumbnailCache[game.id]);
@@ -1371,7 +1516,7 @@ void MainWindow::displayLibrary() {
         card->setGameData({{"name", name}, {"appid", appId}, {"supported", "local"}, {"hasFix", hasFix ? "true" : "false"}});
         card->setSelectable(true);
         connect(card, &GameCard::selectionChanged, this, &MainWindow::onSelectionChanged);
-        m_gridLayout->addWidget(card, count / 7, count % 7);
+        m_gridLayout->addWidget(card, count  / 5, count  % 5);
         m_gameCards.append(card);
 
         if (m_thumbnailCache.contains(appId)) card->setThumbnail(m_thumbnailCache[appId]);
@@ -1402,7 +1547,7 @@ void MainWindow::startSync() {
         for (int i = 0; i < 12; ++i) {
             GameCard* card = new GameCard(m_gridLayout->parentWidget());
             card->setSkeleton(true);
-            m_gridLayout->addWidget(card, i / 7, i % 7);
+            m_gridLayout->addWidget(card, i  / 5, i  % 5);
             m_gameCards.append(card);
         }
         m_stack->setCurrentIndex(1);
@@ -1683,7 +1828,7 @@ void MainWindow::onSearchFinished(QNetworkReply* reply) {
             connect(card, &GameCard::clicked, this, &MainWindow::onCardClicked);
             
             int idx = m_gameCards.count();
-            m_gridLayout->addWidget(card, idx / 7, idx % 7);
+            m_gridLayout->addWidget(card, idx  / 5, idx  % 5);
             m_gameCards.append(card);
             cardMap.insert(id, card);
             changed = true;
@@ -1744,7 +1889,7 @@ void MainWindow::displayResults(const QJsonArray& items) {
         GameCard* card = new GameCard(m_gridLayout->parentWidget());
         card->setGameData({{"name", name}, {"appid", appid}, {"supported", supported ? "true" : "false"}, {"hasFix", hasFix ? "true" : "false"}});
         connect(card, &GameCard::clicked, this, &MainWindow::onCardClicked);
-        m_gridLayout->addWidget(card, idx / 7, idx % 7);
+        m_gridLayout->addWidget(card, idx  / 5, idx  % 5);
         m_gameCards.append(card);
         
         if (m_thumbnailCache.contains(appid)) card->setThumbnail(m_thumbnailCache[appid]);
@@ -2004,8 +2149,31 @@ void MainWindow::updateModeUI() {
     m_tabLua->setAccentColor(m_currentMode == AppMode::LuaPatcher ? Colors::PRIMARY : "transparent");
     m_tabLibrary->setAccentColor(m_currentMode == AppMode::Library ? Colors::ACCENT_GREEN : "transparent");
     m_tabSettings->setAccentColor(m_currentMode == AppMode::Settings ? Colors::PRIMARY : "transparent");
-    m_tabDiscord->setAccentColor("transparent");
 
+    // Animate sidebar indicator to the active tab
+    GlassButton* activeTab = nullptr;
+    if (m_currentMode == AppMode::LuaPatcher) activeTab = m_tabLua;
+    else if (m_currentMode == AppMode::Library) activeTab = m_tabLibrary;
+    else if (m_currentMode == AppMode::Settings) activeTab = m_tabSettings;
+    
+    if (activeTab && m_sidebarIndicator) {
+        // Map the tab's center-left position to the sidebar widget's coordinate space
+        QPoint tabPos = activeTab->mapTo(m_sidebarWidget, QPoint(0, 0));
+        int indicatorY = tabPos.y() + (activeTab->height() - m_sidebarIndicator->height()) / 2;
+        QPoint targetPos(4, indicatorY);
+        
+        if (m_sidebarIndicator->pos().isNull() || !m_sidebarIndicator->isVisible()) {
+            // First time — snap directly without animation
+            m_sidebarIndicator->move(targetPos);
+            m_sidebarIndicator->show();
+        } else {
+            // Animate slide
+            m_indicatorAnimation->stop();
+            m_indicatorAnimation->setStartValue(m_sidebarIndicator->pos());
+            m_indicatorAnimation->setEndValue(targetPos);
+            m_indicatorAnimation->start();
+        }
+    }
     
     if (m_currentMode == AppMode::LuaPatcher) {
     } else if (m_currentMode == AppMode::Library) {

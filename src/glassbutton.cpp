@@ -105,131 +105,48 @@ void GlassButton::paintEvent(QPaintEvent* event) {
     bool isCompact = (h < 60);
     
     QRectF bgRect = QRectF(r).adjusted(1, 1, -1, -1);
-    int radius = 16; // Material M3 standard corner radius
+    int radius = 10; // Reference: radius 10
     
-    // ── Background ──
-    QColor bgColor;
-    if (m_isActive) {
-        // Active: frosted glass
-        bgColor = QColor(255, 255, 255, 15);
-    } else if (isPressed) {
-        QColor accent(m_accentColor);
-        accent.setAlpha(40);
-        bgColor = accent;
-    } else if (isHover) {
-        bgColor = QColor(255, 255, 255, 25);
-    } else {
-        bgColor = QColor(255, 255, 255, 5);
+    // Background — only on hover (reference: rgba(1,1,1,0.05))
+    if (isHover || isPressed) {
+        QColor bgColor = isPressed ? QColor(255, 255, 255, 20) : QColor(255, 255, 255, 13);
+        QPainterPath bgPath;
+        bgPath.addRoundedRect(bgRect, radius, radius);
+        painter.fillPath(bgPath, bgColor);
     }
     
-    QPainterPath bgPath;
-    bgPath.addRoundedRect(bgRect, radius, radius);
-    painter.fillPath(bgPath, bgColor);
+    // Active indicator is now drawn as a sidebar-level animated widget
     
-    // ── Active indicator neon bar (left) ──
-    if (m_isActive) {
-        QLinearGradient neonGrad(0, 0, 8, 0);
-        QColor primary = Colors::currentTheme.primary;
-        neonGrad.setColorAt(0, primary);
-        
-        QColor fadePrimary = primary;
-        fadePrimary.setAlpha(0);
-        neonGrad.setColorAt(1, fadePrimary);
-        
-        painter.fillRect(QRectF(0, h * 0.15, 6, h * 0.7), neonGrad);
-        
-        QPainterPath pill;
-        pill.addRoundedRect(QRectF(0, h * 0.15, 3, h * 0.7), 1.5, 1.5);
-        painter.fillPath(pill, primary);
-    }
+    // Icon
+    int iconSize = 22;
+    int iconX = 24; // After pill area
     
-    // ── Border ──
-    QColor borderColor;
-    if (m_isActive) {
-        borderColor = QColor(255, 255, 255, 40);
-    } else if (isHover || isPressed) {
-        borderColor = Colors::toQColor(Colors::PRIMARY);
-        borderColor.setAlpha(80);
-    } else {
-        borderColor = QColor(255, 255, 255, 15);
-    }
-    QPen pen(borderColor, 1);
-    painter.setPen(pen);
-    painter.setBrush(Qt::NoBrush);
-    painter.drawRoundedRect(bgRect, radius, radius);
-    
-    // ── Icon ──
-    int iconSize = isCompact ? 20 : 24;
-    int padding = isCompact ? 10 : 14;
-    
-    // If width is narrow (collapsible sidebar), center the icon
     bool isNarrow = r.width() < 100;
     
-    QRectF iconBgRect;
+    QRectF iconRect;
     if (isNarrow) {
-        iconBgRect = QRectF((r.width() - (isCompact ? 30 : 36)) / 2.0,
-                            (h - (isCompact ? 30 : 36)) / 2.0,
-                            isCompact ? 30 : 36, isCompact ? 30 : 36);
+        iconRect = QRectF((r.width() - iconSize) / 2.0, (h - iconSize) / 2.0, iconSize, iconSize);
     } else {
-        iconBgRect = QRectF(padding, (h - (isCompact ? 30 : 36)) / 2.0,
-                            isCompact ? 30 : 36, isCompact ? 30 : 36);
+        iconRect = QRectF(iconX, (h - iconSize) / 2.0, iconSize, iconSize);
     }
     
-    // Icon background: rounded container with accent color
-    QColor iconBgColor(m_accentColor);
-    if (m_isActive) {
-        iconBgColor = Colors::currentTheme.primary;
-        iconBgColor.setAlpha(60);
-    } else {
-        iconBgColor.setAlpha(30);
-    }
+    // All sidebar items use #EFECE3 per reference
+    QColor iconColor = QColor("#EFECE3");
+    MaterialIcons::draw(painter, iconRect, iconColor, m_icon);
     
-    QPainterPath iconBgPath;
-    iconBgPath.addRoundedRect(iconBgRect, isCompact ? 8 : 10, isCompact ? 8 : 10);
-    painter.fillPath(iconBgPath, iconBgColor);
-    
-    // Draw material icon centered in the icon bg
-    QRectF iconDrawRect(
-        iconBgRect.center().x() - iconSize / 2.0,
-        iconBgRect.center().y() - iconSize / 2.0,
-        iconSize, iconSize
-    );
-    
-    QColor iconColor = m_isActive
-        ? Colors::currentTheme.primary
-        : QColor("#FFFFFF");
-    MaterialIcons::draw(painter, iconDrawRect, iconColor, m_icon);
-    
-    // ── Text ──
+    // Text (reference: 15px, active=white bold, inactive=#8FABD4 normal)
     if (!isNarrow) {
-        int textX = padding + iconBgRect.width() + (isCompact ? 10 : 14);
+        int textX = iconX + iconSize + 15; // Reference: spacing 15
         int textW = r.width() - textX - 8;
         
-        QColor textColor = m_isActive
-            ? Colors::currentTheme.primary
-            : Colors::toQColor(Colors::ON_SURFACE);
+        QColor textColor = QColor("#EFECE3");
         painter.setPen(textColor);
         
-        if (isCompact || m_descText.isEmpty()) {
-            QRectF titleRect(textX, 0, textW, h);
-            QFont titleFont("Roboto", isCompact ? 9 : 10, QFont::DemiBold);
-            titleFont.setStyleStrategy(QFont::PreferAntialias);
-            painter.setFont(titleFont);
-            painter.drawText(titleRect, Qt::AlignLeft | Qt::AlignVCenter, m_titleText.trimmed());
-        } else {
-            int titleY = (h / 2) - 10;
-            QRectF titleRect(textX, titleY - 2, textW, 20);
-            QFont titleFont("Roboto", 10, QFont::DemiBold);
-            titleFont.setStyleStrategy(QFont::PreferAntialias);
-            painter.setFont(titleFont);
-            painter.drawText(titleRect, Qt::AlignLeft | Qt::AlignVCenter, m_titleText);
-            
-            QRectF descRect(textX, titleY + 18, textW, 16);
-            painter.setPen(Colors::toQColor(Colors::ON_SURFACE_VARIANT));
-            QFont descFont("Roboto", 8);
-            descFont.setStyleStrategy(QFont::PreferAntialias);
-            painter.setFont(descFont);
-            painter.drawText(descRect, Qt::AlignLeft | Qt::AlignVCenter, m_descText);
-        }
+        QFont titleFont("Segoe UI", 13, m_isActive ? QFont::Bold : QFont::Normal);
+        titleFont.setStyleStrategy(QFont::PreferAntialias);
+        painter.setFont(titleFont);
+        
+        QRectF titleRect(textX, 0, textW, h);
+        painter.drawText(titleRect, Qt::AlignLeft | Qt::AlignVCenter, m_titleText.trimmed());
     }
 }

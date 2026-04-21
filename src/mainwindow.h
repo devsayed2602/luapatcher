@@ -24,6 +24,7 @@ class GameCard;
 #include "terminaldialog.h"
 
 class GameDetailsPage;
+class CustomTitleBar;
 
 class LoadingSpinner;
 class IndexDownloadWorker;
@@ -31,6 +32,24 @@ class IndexDownloadWorker;
 class LuaDownloadWorker;
 class RestartWorker;
 class GeneratorWorker;
+
+class HeroBannerWidget : public QWidget {
+    Q_OBJECT
+    Q_PROPERTY(qreal imageScale READ imageScale WRITE setImageScale)
+public:
+    explicit HeroBannerWidget(QWidget* parent = nullptr);
+    void setPixmap(const QPixmap& p);
+    qreal imageScale() const { return m_imageScale; }
+    void setImageScale(qreal s) { m_imageScale = s; update(); }
+protected:
+    void paintEvent(QPaintEvent* event) override;
+    void enterEvent(QEnterEvent* event) override;
+    void leaveEvent(QEvent* event) override;
+private:
+    QPixmap m_pixmap;
+    qreal m_imageScale = 1.05;
+    QPropertyAnimation* m_scaleAnim;
+};
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -85,6 +104,11 @@ private slots:
     void expandSidebar();
     void collapseSidebarDelayed();
 
+    // Window Management
+    void onTitleBarMinimize();
+    void onTitleBarMaximize();
+    void onTitleBarClose();
+
 private:
     void initUI();
     void startSync();
@@ -114,10 +138,10 @@ private:
     QProgressBar* m_progress;
     
     // Main Content
+    CustomTitleBar* m_titleBar;
     QWidget* m_mainScrollContainer;
     QVBoxLayout* m_mainScrollLayout;
     QScrollArea* m_mainScrollArea;
-    
     QLabel* m_leadingTitlesLabel;
     QStackedWidget* m_heroStack;
     
@@ -159,9 +183,14 @@ private:
 
     // Sidebar
     QWidget* m_sidebarWidget;
+    QWidget* m_rightPanelWidget;
     bool m_sidebarExpanded = false;
     QPropertyAnimation* m_sidebarAnimation;
     QTimer* m_sidebarCollapseTimer;
+    
+    // Animated sidebar indicator bar
+    QWidget* m_sidebarIndicator = nullptr;
+    QPropertyAnimation* m_indicatorAnimation = nullptr;
     
     QLabel* m_appTitleLabel;
     QLabel* m_navTitleLabel;
