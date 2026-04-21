@@ -2569,7 +2569,7 @@ void MainWindow::setInitialUser(const QString& username, const QJsonObject& data
         if (m_sidebarLevelProgress) m_sidebarLevelProgress->hide();
     }
     
-    if (m_socialPage) m_socialPage->setUserData(m_username, m_isGuest);
+    if (m_socialPage) m_socialPage->setUserData(m_username, m_isGuest); refreshFriendsList();
 }
 
 void MainWindow::updateXP(int amount) {
