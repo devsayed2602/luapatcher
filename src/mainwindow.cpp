@@ -788,57 +788,6 @@ void MainWindow::initUI() {
 
     sidebarInnerLayout->addStretch();
 
-    // ── Sidebar Profile ──
-    m_sidebarProfileWidget = new QWidget(m_sidebarWidget);
-    m_sidebarProfileWidget->setFixedHeight(100);
-    QVBoxLayout* profileLayout = new QVBoxLayout(m_sidebarProfileWidget);
-    profileLayout->setContentsMargins(16, 0, 16, 16);
-    profileLayout->setSpacing(8);
-
-    QHBoxLayout* profileUpper = new QHBoxLayout();
-    m_sidebarAvatarLabel = new QLabel();
-    m_sidebarAvatarLabel->setFixedSize(44, 44);
-    m_sidebarAvatarLabel->setScaledContents(true);
-    m_sidebarAvatarLabel->setStyleSheet("background: rgba(255,255,255,10); border-radius: 22px; border: 2px solid rgba(255,255,255,20); overflow: hidden;");
-    m_sidebarAvatarLabel->setCursor(Qt::PointingHandCursor);
-    
-    // Set default avatar
-    m_sidebarAvatarLabel->setText(m_username.left(1).toUpper());
-    m_sidebarAvatarLabel->setAlignment(Qt::AlignCenter);
-    m_sidebarAvatarLabel->setStyleSheet(m_sidebarAvatarLabel->styleSheet() + " color: white; font-weight: bold; font-size: 18px;");
-
-    m_sidebarUsernameLabel = new QLabel(m_username);
-    m_sidebarUsernameLabel->setStyleSheet("color: white; font-weight: bold; font-size: 14px;");
-
-    profileUpper->addWidget(m_sidebarAvatarLabel);
-    profileUpper->addWidget(m_sidebarUsernameLabel);
-    profileUpper->addStretch();
-    profileLayout->addLayout(profileUpper);
-
-    m_sidebarLevelLabel = new QLabel("Level 1");
-    m_sidebarLevelLabel->setStyleSheet("color: #D0BCFF; font-size: 11px; font-weight: bold;");
-    profileLayout->addWidget(m_sidebarLevelLabel);
-
-    m_sidebarLevelProgress = new QProgressBar();
-    m_sidebarLevelProgress->setFixedHeight(4);
-    m_sidebarLevelProgress->setTextVisible(false);
-    m_sidebarLevelProgress->setStyleSheet("QProgressBar { background: rgba(255,255,255,10); border: none; border-radius: 2px; } QProgressBar::chunk { background: #D0BCFF; border-radius: 2px; }");
-    profileLayout->addWidget(m_sidebarLevelProgress);
-
-    sidebarOuterLayout->addWidget(m_sidebarProfileWidget);
-    
-    // Update profile from initial data
-    if (!m_isGuest && !m_userData.isEmpty()) {
-        updateXP(0); 
-        QString av = m_userData["avatar_url"].toString();
-        if (!av.isEmpty()) {
-            QPixmap p; p.loadFromData(QByteArray::fromBase64(av.toUtf8()));
-            if (!p.isNull()) m_sidebarAvatarLabel->setPixmap(p);
-        }
-    } else if (m_isGuest) {
-        m_sidebarLevelLabel->setText("Guest Mode");
-        m_sidebarLevelProgress->hide();
-    }
     m_tabSettings = new GlassButton(MaterialIcons::Settings, " Settings", "", Colors::OUTLINE);
     m_tabSettings->setFixedHeight(45);
     connect(m_tabSettings, &QPushButton::clicked, this, [this](){ switchMode(AppMode::Settings); });
@@ -869,8 +818,9 @@ void MainWindow::initUI() {
     
     m_infoTitleLabel->hide(); // Start collapsed
     
+    m_infoTitleLabel->hide(); // Start collapsed
+    
     rootLayout->addWidget(m_sidebarWidget);
-    m_sidebarAvatarLabel->installEventFilter(this);
 
     // ──── Content Area ────
     QWidget* contentWidget = new QWidget();
