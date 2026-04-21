@@ -1323,6 +1323,8 @@ void MainWindow::displayRandomGames() {
         }
     }
     
+    if (m_heroCarouselTimer) m_heroCarouselTimer->stop();
+
     // Clear old carousel slides
     while (m_heroStack->count() > 0) {
         QWidget* w = m_heroStack->widget(0);

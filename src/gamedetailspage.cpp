@@ -713,6 +713,8 @@ void GameDetailsPage::clear() {
         delete child;
     }
 
+
+
     // Clear security (keep title)
     while (m_securityLayout->count() > 1) {
         child = m_securityLayout->takeAt(1);
@@ -728,13 +730,22 @@ void GameDetailsPage::clear() {
         }
     }
 
-    // Remove opacity effects from previous animation
-    if (m_tagContainer) m_tagContainer->setGraphicsEffect(nullptr);
-    if (m_heroTitleLabel) m_heroTitleLabel->setGraphicsEffect(nullptr);
-    if (m_heroSubtitleLabel) m_heroSubtitleLabel->setGraphicsEffect(nullptr);
-    if (m_infoRow) m_infoRow->setGraphicsEffect(nullptr);
-    if (m_screenshotSection) m_screenshotSection->setGraphicsEffect(nullptr);
-    if (m_detailsRow) m_detailsRow->setGraphicsEffect(nullptr);
+    // CRITICAL FIX: Schedule effect removal for the next event loop tick.
+    // If we remove them immediately while an animation is finishing, Qt6 crashes.
+    auto safeRemoveEffect = [](QWidget* w) {
+        if (!w) return;
+        QPointer<QWidget> sw(w);
+        QTimer::singleShot(0, w, [sw]() {
+            if (sw) sw->setGraphicsEffect(nullptr);
+        });
+    };
+
+    safeRemoveEffect(m_tagContainer);
+    safeRemoveEffect(m_heroTitleLabel);
+    safeRemoveEffect(m_heroSubtitleLabel);
+    safeRemoveEffect(m_infoRow);
+    safeRemoveEffect(m_screenshotSection);
+    safeRemoveEffect(m_detailsRow);
 
     m_currentLoadId++;
 }

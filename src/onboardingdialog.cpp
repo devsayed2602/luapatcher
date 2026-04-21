@@ -228,7 +228,13 @@ void OnboardingDialog::onPrimaryClicked() {
     QString user = m_usernameInput->text().trimmed();
     QString pass = m_passwordInput->text();
     
-    if (user.isEmpty() || pass.isEmpty()) return;
+    if (user.isEmpty()) { m_statusLabel->setText("⚠ Username required"); return; }
+    if (pass.isEmpty()) { m_statusLabel->setText("⚠ Password required"); return; }
+    
+    if (m_currentMode == REGISTER && pass.length() < 6) {
+        m_statusLabel->setText("⚠ Password must be at least 6 characters");
+        return;
+    }
     
     m_continueBtn->setEnabled(false);
     m_continueBtn->setText("Processing...");
@@ -258,17 +264,17 @@ void OnboardingDialog::onAuthFinished(QNetworkReply* reply) {
     } else {
         QString errorMsg = "Auth failed";
         
-        if (reply->error() != QNetworkReply::NoError) {
-            // If it's a network error but we have a JSON body, use the server's message
-            if (!obj["error"].toString().isEmpty()) {
-                errorMsg = obj["error"].toString();
-            } else {
-                // Otherwise use the Qt network error string
-                errorMsg = reply->errorString();
-            }
-        } else {
-            // No network error, but success was false
-            errorMsg = obj["error"].toString("Auth failed");
+        // Priority 1: Check server JSON error message
+        if (!obj["error"].toString().isEmpty()) {
+            errorMsg = obj["error"].toString();
+        } 
+        // Priority 2: Check Qt Network error string
+        else if (reply->error() != QNetworkReply::NoError) {
+            errorMsg = reply->errorString();
+        }
+        // Priority 3: Fallback for 401/403 without JSON
+        else if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 401) {
+            errorMsg = "Invalid username or password";
         }
         
         m_statusLabel->setText("✗ " + errorMsg);
