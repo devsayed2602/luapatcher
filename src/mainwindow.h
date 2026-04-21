@@ -203,6 +203,8 @@ private:
     GameDetailsPage* m_gameDetailsPage;
     class SocialPage* m_socialPage;
 
+    // Sidebar
+    QWidget* m_sidebarWidget;
     QWidget* m_rightPanelWidget;
     QWidget* m_friendsContainer;
     QVBoxLayout* m_friendsLayout;
