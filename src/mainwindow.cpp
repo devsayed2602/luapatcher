@@ -1162,6 +1162,8 @@ void MainWindow::initUI() {
     QLabel* avatarLabel = new QLabel(avatarContainer);
     avatarLabel->setPixmap(avatarPix);
     avatarLabel->setGeometry(0, 0, avSz + 4, avSz + 4);
+    avatarLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
+    avatarContainer->setAttribute(Qt::WA_TransparentForMouseEvents);
     rpTopLayout->addWidget(avatarContainer);
 
     // Name + LVL pill to the right of avatar
@@ -1170,6 +1172,7 @@ void MainWindow::initUI() {
     nameLayout->setAlignment(Qt::AlignVCenter);
     m_topUsernameLabel = new QLabel(displayName);
     m_topUsernameLabel->setStyleSheet("font-size: 15px; font-weight: bold; color: white; background: transparent;");
+    m_topUsernameLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
     nameLayout->addWidget(m_topUsernameLabel);
 
     // LVL pill + progress bar row
