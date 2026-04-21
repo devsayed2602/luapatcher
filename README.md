@@ -1,6 +1,6 @@
 <div align="center">
 
-# ⚡ Steam Lua Patcher
+# ⚡  Lua Patcher
 
 **Unlock the full potential of your Steam games with automated Lua patching.**
 
