@@ -145,8 +145,9 @@ int main(int argc, char *argv[]) {
     font.setStyleStrategy(QFont::PreferAntialias);
     app.setFont(font);
     
-    // Check for saved username, show onboarding if needed BEFORE main window
-    QSettings settings("LuaPatcher", "SteamLuaPatcher");
+    // Use a local .ini file instead of the registry
+    QString settingsPath = QCoreApplication::applicationDirPath() + "/settings.ini";
+    QSettings settings(settingsPath, QSettings::IniFormat);
     QString username = settings.value("username", "").toString();
     
     QJsonObject initialUserData;

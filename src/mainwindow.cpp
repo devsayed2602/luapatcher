@@ -180,9 +180,11 @@ MainWindow::MainWindow(QWidget* parent)
     , m_sidebarProfileWidget(nullptr)
 {
     // Retrieve username first so UI reflects it correctly (Avatar initial)
-    QSettings settings("LuaPatcher", "SteamLuaPatcher");
-    m_username = settings.value("username", "User").toString();
-    m_isGuest = settings.value("isGuest", false).toBool();
+    // Use a local .ini file instead of the registry
+    QString settingsPath = QCoreApplication::applicationDirPath() + "/settings.ini";
+    QSettings settings(settingsPath, QSettings::IniFormat);
+    m_username = settings.value("username", "").toString();
+    m_isGuest = settings.value("isGuest", true).toBool();
     QString dataStr = settings.value("userData", "").toString();
     if (!dataStr.isEmpty()) {
         m_userData = QJsonDocument::fromJson(dataStr.toUtf8()).object();
@@ -1033,8 +1035,9 @@ void MainWindow::initUI() {
         if (!dir.isEmpty()) {
             // Unify separators visually
             pathInput->setText(dir);
-            QSettings s("LuaPatcher", "SteamLuaPatcher");
-            s.setValue("PluginDir", dir);
+            QString settingsPath = QCoreApplication::applicationDirPath() + "/settings.ini";
+            QSettings settings(settingsPath, QSettings::IniFormat);
+            settings.setValue("PluginDir", dir);
         }
     });
     pathLayout->addWidget(browseBtn);
