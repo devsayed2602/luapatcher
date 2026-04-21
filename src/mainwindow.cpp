@@ -50,14 +50,8 @@
 #include <QMimeData>
 #include <QSettings>
 #include <QMouseEvent>
-<<<<<<< Updated upstream
-=======
-<<<<<<< HEAD
 #include <QScreen>
 #include <QGuiApplication>
-=======
->>>>>>> c3d52a43d9cc4b0e01f4acf0df3b62a007d30ac9
->>>>>>> Stashed changes
 
 // ==========================================
 // HeroBannerWidget Implementation
@@ -344,9 +338,6 @@ bool MainWindow::nativeEvent(const QByteArray &eventType, void *message, qintptr
 
             // 2. Title Bar / Dragging zone
             if (m_titleBar) {
-<<<<<<< Updated upstream
-=======
-<<<<<<< HEAD
                 // Use Qt's DPI-aware coordinate mapping instead of manual ScreenToClient. 
                 // This correctly converts physical screen pixels (x, y) to logical widget pixels.
                 QPoint localPos = m_titleBar->mapFromGlobal(QPoint(x, y));
@@ -362,26 +353,6 @@ bool MainWindow::nativeEvent(const QByteArray &eventType, void *message, qintptr
                         if (w->objectName() == "closeBtn") { *result = HTCLOSE; return true; }
                         
                         // If it's another interactive widget (like a search input), let Qt handle it
-=======
->>>>>>> Stashed changes
-                // Convert screen coordinates to window-client coordinates for accurate hit testing
-                POINT pt = { x, y };
-                ScreenToClient(msg->hwnd, &pt);
-                
-                // Title bar is 40px high at the top of the window
-                if (pt.y >= 0 && pt.y <= m_titleBar->height() && pt.x >= 0 && pt.x <= width()) {
-                    // Check if it's over a button inside the title bar
-                    QPoint localPos = m_titleBar->mapFrom(this, QPoint(pt.x, pt.y));
-                    QWidget* w = m_titleBar->childAt(localPos);
-                    if (w) {
-                        if (w->objectName() == "minBtn") { *result = HTMINBUTTON; return true; }
-                        if (w->objectName() == "maxBtn") { *result = HTMAXBUTTON; return true; }
-                        if (w->objectName() == "closeBtn") { *result = HTCLOSE; return true; }
-                        // If it's another interactive widget (like a search input if we put one there later), return HTCLIENT
-<<<<<<< Updated upstream
-=======
->>>>>>> c3d52a43d9cc4b0e01f4acf0df3b62a007d30ac9
->>>>>>> Stashed changes
                         if (qobject_cast<QPushButton*>(w) || qobject_cast<QLineEdit*>(w)) {
                             return false; 
                         }
@@ -712,15 +683,7 @@ void MainWindow::initUI() {
     
     // ──── Material Navigation Rail (Sidebar) ────
     m_sidebarWidget = new QWidget();
-<<<<<<< Updated upstream
-    m_sidebarWidget->setFixedWidth(220);
-=======
-<<<<<<< HEAD
     m_sidebarWidget->setFixedWidth(180);
-=======
-    m_sidebarWidget->setFixedWidth(220);
->>>>>>> c3d52a43d9cc4b0e01f4acf0df3b62a007d30ac9
->>>>>>> Stashed changes
     m_sidebarWidget->setAttribute(Qt::WA_StyledBackground);
     m_sidebarWidget->setAutoFillBackground(false);
     m_sidebarWidget->setStyleSheet(QString(
@@ -739,15 +702,7 @@ void MainWindow::initUI() {
     sidebarInner->setStyleSheet("background: transparent; border: none;");
     
     QVBoxLayout* sidebarInnerLayout = new QVBoxLayout(sidebarInner);
-<<<<<<< Updated upstream
-    sidebarInnerLayout->setContentsMargins(20, 24, 20, 16);
-=======
-<<<<<<< HEAD
     sidebarInnerLayout->setContentsMargins(16, 24, 16, 16);
-=======
-    sidebarInnerLayout->setContentsMargins(20, 24, 20, 16);
->>>>>>> c3d52a43d9cc4b0e01f4acf0df3b62a007d30ac9
->>>>>>> Stashed changes
     sidebarInnerLayout->setSpacing(12);
     
     QVBoxLayout* sidebarOuterLayout = new QVBoxLayout(m_sidebarWidget);
@@ -809,15 +764,7 @@ void MainWindow::initUI() {
 
     // ── Animated sidebar indicator bar ──
     m_sidebarIndicator = new QWidget(m_sidebarWidget);
-<<<<<<< Updated upstream
-    m_sidebarIndicator->setFixedSize(4, 24);
-=======
-<<<<<<< HEAD
     m_sidebarIndicator->setFixedSize(6, 28);
-=======
-    m_sidebarIndicator->setFixedSize(4, 24);
->>>>>>> c3d52a43d9cc4b0e01f4acf0df3b62a007d30ac9
->>>>>>> Stashed changes
     m_sidebarIndicator->setStyleSheet("background: #EFECE3; border-radius: 2px;");
     m_sidebarIndicator->raise();
     
@@ -827,9 +774,6 @@ void MainWindow::initUI() {
 
     sidebarInnerLayout->addStretch();
 
-<<<<<<< Updated upstream
-=======
-<<<<<<< HEAD
     // ── Sidebar Profile ──
     m_sidebarProfileWidget = new QWidget(m_sidebarWidget);
     m_sidebarProfileWidget->setFixedHeight(100);
@@ -881,10 +825,6 @@ void MainWindow::initUI() {
         m_sidebarLevelLabel->setText("Guest Mode");
         m_sidebarLevelProgress->hide();
     }
-
-=======
->>>>>>> c3d52a43d9cc4b0e01f4acf0df3b62a007d30ac9
->>>>>>> Stashed changes
     m_tabSettings = new GlassButton(MaterialIcons::Settings, " Settings", "", Colors::OUTLINE);
     m_tabSettings->setFixedHeight(45);
     connect(m_tabSettings, &QPushButton::clicked, this, [this](){ switchMode(AppMode::Settings); });
@@ -1306,15 +1246,7 @@ void MainWindow::initUI() {
         if (m_sidebarIndicator && m_tabLua) {
             QPoint tabPos = m_tabLua->mapTo(m_sidebarWidget, QPoint(0, 0));
             int indicatorY = tabPos.y() + (m_tabLua->height() - m_sidebarIndicator->height()) / 2;
-<<<<<<< Updated upstream
-            m_sidebarIndicator->move(4, indicatorY);
-=======
-<<<<<<< HEAD
             m_sidebarIndicator->move(6, indicatorY);
-=======
-            m_sidebarIndicator->move(4, indicatorY);
->>>>>>> c3d52a43d9cc4b0e01f4acf0df3b62a007d30ac9
->>>>>>> Stashed changes
             m_sidebarIndicator->show();
         }
     });
@@ -1456,17 +1388,6 @@ void MainWindow::displayRandomGames() {
         nameLbl->setMaximumWidth(700);
         heroLayout->addWidget(nameLbl);
         
-<<<<<<< Updated upstream
-        // Subtitle with App ID
-        QLabel* subtitleLbl = new QLabel(QString("App ID: %1").arg(featuredId));
-        subtitleLbl->setStyleSheet(
-            "font-size: 14px; font-weight: 500; color: #8FABD4; background: transparent; border: none;"
-            " font-family: 'Segoe UI'; margin-top: 6px;"
-        );
-        heroLayout->addWidget(subtitleLbl);
-        
-=======
-<<<<<<< HEAD
         // Description - one to two lines of context
         QLabel* descLbl = new QLabel("Experience high-performance community patches, optimized performance tweaks, and the latest trending features for your favorite games.");
         descLbl->setStyleSheet(
@@ -1484,18 +1405,6 @@ void MainWindow::displayRandomGames() {
             " font-family: 'Segoe UI'; margin-top: 6px;"
         );
         heroLayout->addWidget(subtitleLbl);
-        
-=======
-        // Subtitle with App ID
-        QLabel* subtitleLbl = new QLabel(QString("App ID: %1").arg(featuredId));
-        subtitleLbl->setStyleSheet(
-            "font-size: 14px; font-weight: 500; color: #8FABD4; background: transparent; border: none;"
-            " font-family: 'Segoe UI'; margin-top: 6px;"
-        );
-        heroLayout->addWidget(subtitleLbl);
-        
->>>>>>> c3d52a43d9cc4b0e01f4acf0df3b62a007d30ac9
->>>>>>> Stashed changes
         m_heroStack->addWidget(slide);
         updateHeroIndicators();
 
@@ -2338,15 +2247,7 @@ void MainWindow::updateModeUI() {
         // Map the tab's center-left position to the sidebar widget's coordinate space
         QPoint tabPos = activeTab->mapTo(m_sidebarWidget, QPoint(0, 0));
         int indicatorY = tabPos.y() + (activeTab->height() - m_sidebarIndicator->height()) / 2;
-<<<<<<< Updated upstream
-        QPoint targetPos(4, indicatorY);
-=======
-<<<<<<< HEAD
         QPoint targetPos(6, indicatorY);
-=======
-        QPoint targetPos(4, indicatorY);
->>>>>>> c3d52a43d9cc4b0e01f4acf0df3b62a007d30ac9
->>>>>>> Stashed changes
         
         if (m_sidebarIndicator->pos().isNull() || !m_sidebarIndicator->isVisible()) {
             // First time — snap directly without animation
