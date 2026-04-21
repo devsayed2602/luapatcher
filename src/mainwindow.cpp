@@ -4,6 +4,7 @@
 #include "loadingspinner.h"
 #include "gamedetailspage.h"
 #include "socialpage.h"
+#include "profilecard.h"
 #include "customtitlebar.h"
 #include "materialicons.h"
 #include "workers/indexdownloadworker.h"
@@ -405,6 +406,13 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
         }
     } else if (obj == m_sidebarAvatarLabel && event->type() == QEvent::MouseButtonPress) {
         showAvatarPicker();
+        return true;
+    } else if (obj == m_topProfileWidget && event->type() == QEvent::MouseButtonPress) {
+        ProfileCard* card = new ProfileCard(m_username, m_userData, this);
+        // Center on screen or position near the widget
+        card->show();
+        // Center the card
+        card->move(geometry().center() - card->rect().center());
         return true;
     } else if (obj == m_sidebarWidget) {
         // Sidebar is always expanded — no animation
@@ -1226,6 +1234,8 @@ void MainWindow::initUI() {
 
     rpLayout->addLayout(rpStatsLayout);
     rightLayout->addWidget(m_topProfileWidget);
+    m_topProfileWidget->setCursor(Qt::PointingHandCursor);
+    m_topProfileWidget->installEventFilter(this);
 
     QLabel* actHeader = new QLabel("LATEST ACTIVITY");
     actHeader->setStyleSheet("font-size: 11px; font-weight: bold; letter-spacing: 1px; color: " + Colors::ON_SURFACE + ";");
