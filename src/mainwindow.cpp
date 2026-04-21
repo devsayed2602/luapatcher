@@ -3,6 +3,7 @@
 #include "gamecard.h"
 #include "loadingspinner.h"
 #include "gamedetailspage.h"
+#include "socialpage.h"
 #include "customtitlebar.h"
 #include "materialicons.h"
 #include "workers/indexdownloadworker.h"
@@ -762,6 +763,11 @@ void MainWindow::initUI() {
     connect(m_tabLibrary, &QPushButton::clicked, this, [this](){ switchMode(AppMode::Library); });
     sidebarInnerLayout->addWidget(m_tabLibrary);
 
+    m_tabSocial = new GlassButton(MaterialIcons::Group, " Social", "", Colors::PRIMARY);
+    m_tabSocial->setFixedHeight(45);
+    connect(m_tabSocial, &QPushButton::clicked, this, [this](){ switchMode(AppMode::Social); });
+    sidebarInnerLayout->addWidget(m_tabSocial);
+
     // ── Animated sidebar indicator bar ──
     m_sidebarIndicator = new QWidget(m_sidebarWidget);
     m_sidebarIndicator->setFixedSize(6, 28);
@@ -1078,6 +1084,10 @@ void MainWindow::initUI() {
     connect(m_gameDetailsPage, &GameDetailsPage::backClicked, this, &MainWindow::onGameDetailsBack);
     connect(m_gameDetailsPage, &GameDetailsPage::addToLibraryClicked, this, &MainWindow::onInstallFromDetails);
     m_stack->addWidget(m_gameDetailsPage); // index 3
+
+    // index 4: Social Page
+    m_socialPage = new SocialPage(m_username, m_isGuest, m_networkManager, this);
+    m_stack->addWidget(m_socialPage); // index 4
     
     mainLayout->addWidget(m_stack);
     
@@ -2231,18 +2241,22 @@ void MainWindow::switchMode(AppMode mode) {
         }
     } else if (m_currentMode == AppMode::Library) {
         displayLibrary();
+    } else if (m_currentMode == AppMode::Social) {
+        m_socialPage->refresh();
     }
 }
 
 void MainWindow::updateModeUI() {
     m_tabLua->setAccentColor(m_currentMode == AppMode::LuaPatcher ? Colors::PRIMARY : "transparent");
     m_tabLibrary->setAccentColor(m_currentMode == AppMode::Library ? Colors::ACCENT_GREEN : "transparent");
+    m_tabSocial->setAccentColor(m_currentMode == AppMode::Social ? Colors::PRIMARY : "transparent");
     m_tabSettings->setAccentColor(m_currentMode == AppMode::Settings ? Colors::PRIMARY : "transparent");
 
     // Animate sidebar indicator to the active tab
     GlassButton* activeTab = nullptr;
     if (m_currentMode == AppMode::LuaPatcher) activeTab = m_tabLua;
     else if (m_currentMode == AppMode::Library) activeTab = m_tabLibrary;
+    else if (m_currentMode == AppMode::Social) activeTab = m_tabSocial;
     else if (m_currentMode == AppMode::Settings) activeTab = m_tabSettings;
     
     if (activeTab && m_sidebarIndicator) {
@@ -2270,6 +2284,8 @@ void MainWindow::updateModeUI() {
     
     if (m_currentMode == AppMode::Settings) {
         m_stack->setCurrentIndex(2);
+    } else if (m_currentMode == AppMode::Social) {
+        m_stack->setCurrentIndex(4);
     } else {
         m_stack->setCurrentIndex(1);
     }
@@ -2525,6 +2541,8 @@ void MainWindow::setInitialUser(const QString& username, const QJsonObject& data
         if (m_sidebarLevelLabel) m_sidebarLevelLabel->setText("Guest Mode");
         if (m_sidebarLevelProgress) m_sidebarLevelProgress->hide();
     }
+    
+    if (m_socialPage) m_socialPage->setUserData(m_username, m_isGuest);
 }
 
 void MainWindow::updateXP(int amount) {

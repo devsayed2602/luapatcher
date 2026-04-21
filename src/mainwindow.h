@@ -59,6 +59,7 @@ public:
     enum class AppMode {
         LuaPatcher,
         Library,
+        Social,
         Settings,
         Discord
     };
@@ -189,6 +190,7 @@ private:
     // Header & Tabs
     GlassButton* m_tabLua;
     GlassButton* m_tabLibrary;
+    GlassButton* m_tabSocial;
     GlassButton* m_tabSettings;
     GlassButton* m_tabDiscord;
     AppMode m_currentMode;
@@ -198,6 +200,7 @@ private:
 
     // Details Page
     GameDetailsPage* m_gameDetailsPage;
+    class SocialPage* m_socialPage;
 
     // Sidebar
     QWidget* m_sidebarWidget;

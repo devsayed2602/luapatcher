@@ -24,7 +24,9 @@ public:
         CheckCircle,
         Flash,        // Lightning bolt
         Settings,
-        Discord
+        Discord,
+        Group,
+        PersonAdd
     };
 
     static void draw(QPainter& p, const QRectF& rect, const QColor& color, Icon icon) {
@@ -55,6 +57,8 @@ public:
         case Flash:      drawFlash(p); break;
         case Settings:   drawSettings(p); break;
         case Discord:    drawDiscord(p); break;
+        case Group:      drawGroup(p); break;
+        case PersonAdd:  drawPersonAdd(p); break;
         }
 
         p.restore();
@@ -349,6 +353,44 @@ private:
         p.setBrush(QColor(0, 0, 0, 150));
         p.drawEllipse(8, 11, 2, 2.5);
         p.drawEllipse(14, 11, 2, 2.5);
+    }
+
+    static void drawGroup(QPainter& p) {
+        // Person 1 (Center)
+        p.drawEllipse(QRectF(9, 4, 6, 6));
+        QPainterPath body1;
+        body1.moveTo(12, 12);
+        body1.cubicTo(8, 12, 4, 14, 4, 18);
+        body1.lineTo(4, 20);
+        body1.lineTo(20, 20);
+        body1.lineTo(20, 18);
+        body1.cubicTo(20, 14, 16, 12, 12, 12);
+        body1.closeSubpath();
+        p.drawPath(body1);
+
+        // Person 2 (Left) - partial
+        p.drawEllipse(QRectF(2, 6, 4, 4));
+        
+        // Person 3 (Right) - partial
+        p.drawEllipse(QRectF(18, 6, 4, 4));
+    }
+
+    static void drawPersonAdd(QPainter& p) {
+        // Person
+        p.drawEllipse(QRectF(9, 4, 6, 6));
+        QPainterPath body;
+        body.moveTo(12, 12);
+        body.cubicTo(8, 12, 4, 14, 4, 18);
+        body.lineTo(4, 20);
+        body.lineTo(16, 20);
+        body.lineTo(16, 18);
+        body.cubicTo(16, 14, 12, 12, 12, 12);
+        body.closeSubpath();
+        p.drawPath(body);
+
+        // Plus sign
+        p.drawRect(QRectF(18, 10, 2, 6));
+        p.drawRect(QRectF(16, 12, 6, 2));
     }
 };
 
