@@ -4,6 +4,8 @@
 #include <QApplication>
 #include <QFont>
 #include <QSettings>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 QString getStyleSheet() {
     return QString(R"(
@@ -146,17 +148,36 @@ int main(int argc, char *argv[]) {
     // Check for saved username, show onboarding if needed BEFORE main window
     QSettings settings("LuaPatcher", "SteamLuaPatcher");
     QString username = settings.value("username", "").toString();
+    
+    QJsonObject initialUserData;
+    bool isGuest = false;
+
     if (username.isEmpty()) {
         OnboardingDialog dialog;
         if (dialog.exec() == QDialog::Accepted) {
-            username = dialog.username();
+            isGuest = dialog.isGuest();
+            if (isGuest) {
+                username = "Guest";
+            } else {
+                username = dialog.username();
+                initialUserData = dialog.userData();
+                settings.setValue("userData", QJsonDocument(initialUserData).toJson());
+            }
             settings.setValue("username", username);
+            settings.setValue("isGuest", isGuest);
         } else {
             return 0; // User closed onboarding, exit app
+        }
+    } else {
+        isGuest = settings.value("isGuest", false).toBool();
+        QString dataStr = settings.value("userData", "").toString();
+        if (!dataStr.isEmpty()) {
+            initialUserData = QJsonDocument::fromJson(dataStr.toUtf8()).object();
         }
     }
     
     MainWindow window;
+    window.setInitialUser(username, initialUserData, isGuest);
     window.showMaximized();
     
     return app.exec();

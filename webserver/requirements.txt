@@ -3,3 +3,4 @@ gunicorn
 requests
 python-dotenv
 upstash-redis
+werkzeug

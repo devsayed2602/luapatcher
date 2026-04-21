@@ -128,7 +128,15 @@ public:
     explicit ScreenshotCard(QWidget* parent = nullptr)
         : QWidget(parent), m_imageScale(1.0)
     {
+<<<<<<< Updated upstream
         setFixedSize(380, 214);
+=======
+<<<<<<< HEAD
+        setFixedSize(480, 270);
+=======
+        setFixedSize(380, 214);
+>>>>>>> c3d52a43d9cc4b0e01f4acf0df3b62a007d30ac9
+>>>>>>> Stashed changes
         setCursor(Qt::PointingHandCursor);
 
         m_scaleAnim = new QPropertyAnimation(this, "imageScale", this);
@@ -148,7 +156,15 @@ protected:
         p.setRenderHint(QPainter::SmoothPixmapTransform);
 
         QRectF r = QRectF(rect()).adjusted(2, 2, -2, -2);
+<<<<<<< Updated upstream
         int radius = 12;
+=======
+<<<<<<< HEAD
+        int radius = 8;
+=======
+        int radius = 12;
+>>>>>>> c3d52a43d9cc4b0e01f4acf0df3b62a007d30ac9
+>>>>>>> Stashed changes
 
         QPainterPath clip;
         clip.addRoundedRect(r, radius, radius);
@@ -461,7 +477,15 @@ void GameDetailsPage::buildUI() {
 
     QScrollArea* ssScroll = new QScrollArea();
     ssScroll->setWidgetResizable(true);
+<<<<<<< Updated upstream
     ssScroll->setFixedHeight(230);
+=======
+<<<<<<< HEAD
+    ssScroll->setFixedHeight(290);
+=======
+    ssScroll->setFixedHeight(230);
+>>>>>>> c3d52a43d9cc4b0e01f4acf0df3b62a007d30ac9
+>>>>>>> Stashed changes
     ssScroll->setStyleSheet(
         "QScrollArea { border: none; background: transparent; }"
         "QScrollBar:horizontal { height: 0px; }"
@@ -510,9 +534,18 @@ void GameDetailsPage::buildUI() {
         "  border: 1px solid rgba(255,255,255,0.05);"
         "  border-radius: 16px;"
         "}"
+<<<<<<< Updated upstream
         "#featureCard:hover {"
         "  border: 1px solid rgba(255,255,255,0.15);"
         "}"
+=======
+<<<<<<< HEAD
+=======
+        "#featureCard:hover {"
+        "  border: 1px solid rgba(255,255,255,0.15);"
+        "}"
+>>>>>>> c3d52a43d9cc4b0e01f4acf0df3b62a007d30ac9
+>>>>>>> Stashed changes
     );
     m_featuresLayout = new QVBoxLayout(featuresWidget);
     m_featuresLayout->setContentsMargins(24, 24, 24, 24);
@@ -543,9 +576,18 @@ void GameDetailsPage::buildUI() {
         "  border: 1px solid rgba(0,255,0,0.05);"
         "  border-radius: 16px;"
         "}"
+<<<<<<< Updated upstream
         "#securityCard:hover {"
         "  border: 1px solid rgba(0,255,0,0.2);"
         "}"
+=======
+<<<<<<< HEAD
+=======
+        "#securityCard:hover {"
+        "  border: 1px solid rgba(0,255,0,0.2);"
+        "}"
+>>>>>>> c3d52a43d9cc4b0e01f4acf0df3b62a007d30ac9
+>>>>>>> Stashed changes
     );
     m_securityLayout = new QVBoxLayout(securityWidget);
     m_securityLayout->setContentsMargins(24, 24, 24, 24);
@@ -918,6 +960,12 @@ void GameDetailsPage::populate(const QJsonObject& data) {
         addSpecRow("DEVELOPER", devNames.join(", "));
     }
 
+<<<<<<< Updated upstream
+=======
+<<<<<<< HEAD
+
+=======
+>>>>>>> Stashed changes
     // Platforms
     if (data.contains("platforms")) {
         QJsonObject plat = data["platforms"].toObject();
@@ -981,6 +1029,10 @@ void GameDetailsPage::populate(const QJsonObject& data) {
     }
 
     addSpecRow("SIZE", gameSize);
+<<<<<<< Updated upstream
+=======
+>>>>>>> c3d52a43d9cc4b0e01f4acf0df3b62a007d30ac9
+>>>>>>> Stashed changes
 
     // ── Screenshots ──
     QJsonArray screenshots = data["screenshots"].toArray();

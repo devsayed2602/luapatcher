@@ -12,6 +12,7 @@
 #include <QStackedWidget>
 #include <QTimer>
 #include <QPropertyAnimation>
+#include <QJsonObject>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QScrollArea>
@@ -65,6 +66,8 @@ public:
     explicit MainWindow(QWidget* parent = nullptr);
     ~MainWindow();
 
+    void setInitialUser(const QString& username, const QJsonObject& data, bool guest);
+
 protected:
     void paintEvent(QPaintEvent* event) override;
     bool nativeEvent(const QByteArray &eventType, void *message, qintptr *result) override;
@@ -95,6 +98,14 @@ private slots:
     void updateModeUI();
     void processNextNameFetch();
     void loadVisibleThumbnails();
+    
+    // User System
+    void updateXP(int amount);
+    void syncStats();
+    void onProfileUpdated(QNetworkReply* reply);
+    void showAvatarPicker();
+    void onAvatarUploaded(QNetworkReply* reply);
+    void handleXpTick();
 
     // Game Details
     void onGameDetailsBack();
@@ -164,7 +175,14 @@ private:
     QList<GameCard*> m_gameCards;
     GameCard* m_selectedCard = nullptr;
     
-    // Top Bar
+    // Sidebar Profile
+    QWidget* m_sidebarProfileWidget;
+    QLabel* m_sidebarAvatarLabel;
+    QLabel* m_sidebarUsernameLabel;
+    QLabel* m_sidebarLevelLabel;
+    QProgressBar* m_sidebarLevelProgress;
+
+    // Right panel profile (matching dashboard design)
     QWidget* m_topProfileWidget;
     QLabel* m_topUsernameLabel;
     
@@ -229,6 +247,12 @@ private:
     // Trending games (from SteamSpy)
     QStringList m_trendingAppIds;
     
+    // User System Data
+    QJsonObject m_userData;
+    bool m_isGuest;
+    QTimer* m_xpTimer;
+    int m_lastSyncXp = 0;
+
     // Ambient Glow
     QTimer* m_glowTimer;
     QColor m_currentGlowColor;

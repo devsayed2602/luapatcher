@@ -12,7 +12,8 @@
 #include "utils/colors.h"
 #include "utils/paths.h"
 #include "config.h"
-#include <QDesktopServices>
+#include <QBuffer>
+#include <QImageWriter>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -49,6 +50,14 @@
 #include <QMimeData>
 #include <QSettings>
 #include <QMouseEvent>
+<<<<<<< Updated upstream
+=======
+<<<<<<< HEAD
+#include <QScreen>
+#include <QGuiApplication>
+=======
+>>>>>>> c3d52a43d9cc4b0e01f4acf0df3b62a007d30ac9
+>>>>>>> Stashed changes
 
 // ==========================================
 // HeroBannerWidget Implementation
@@ -172,10 +181,27 @@ MainWindow::MainWindow(QWidget* parent)
     // Retrieve username first so UI reflects it correctly (Avatar initial)
     QSettings settings("LuaPatcher", "SteamLuaPatcher");
     m_username = settings.value("username", "User").toString();
+    m_isGuest = settings.value("isGuest", false).toBool();
+    QString dataStr = settings.value("userData", "").toString();
+    if (!dataStr.isEmpty()) {
+        m_userData = QJsonDocument::fromJson(dataStr.toUtf8()).object();
+    }
+
+    m_xpTimer = new QTimer(this);
+    m_xpTimer->setInterval(300000); // 5 minutes
+    connect(m_xpTimer, &QTimer::timeout, this, &MainWindow::handleXpTick);
+    m_xpTimer->start();
 
     setWindowTitle("Steam Lua Patcher");
     setMinimumSize(900, 600);
-    resize(1480, 900);
+    resize(1280, 820);
+    
+    // Center window on primary screen
+    if (auto screen = QGuiApplication::primaryScreen()) {
+        QRect screenGeometry = screen->availableGeometry();
+        move(screenGeometry.center() - rect().center());
+    }
+    
     setAcceptDrops(true);
     
     // ── Native Frameless Window Approach ──
@@ -318,6 +344,26 @@ bool MainWindow::nativeEvent(const QByteArray &eventType, void *message, qintptr
 
             // 2. Title Bar / Dragging zone
             if (m_titleBar) {
+<<<<<<< Updated upstream
+=======
+<<<<<<< HEAD
+                // Use Qt's DPI-aware coordinate mapping instead of manual ScreenToClient. 
+                // This correctly converts physical screen pixels (x, y) to logical widget pixels.
+                QPoint localPos = m_titleBar->mapFromGlobal(QPoint(x, y));
+                
+                if (m_titleBar->rect().contains(localPos)) {
+                    // Check if it's over a button inside the title bar
+                    QWidget* w = m_titleBar->childAt(localPos);
+                    if (w) {
+                        // If it's a known system button, return the appropriate hit-test result
+                        // to support native hover effects and menus (like Windows 11 Snap Layouts).
+                        if (w->objectName() == "minBtn") { *result = HTMINBUTTON; return true; }
+                        if (w->objectName() == "maxBtn") { *result = HTMAXBUTTON; return true; }
+                        if (w->objectName() == "closeBtn") { *result = HTCLOSE; return true; }
+                        
+                        // If it's another interactive widget (like a search input), let Qt handle it
+=======
+>>>>>>> Stashed changes
                 // Convert screen coordinates to window-client coordinates for accurate hit testing
                 POINT pt = { x, y };
                 ScreenToClient(msg->hwnd, &pt);
@@ -332,6 +378,10 @@ bool MainWindow::nativeEvent(const QByteArray &eventType, void *message, qintptr
                         if (w->objectName() == "maxBtn") { *result = HTMAXBUTTON; return true; }
                         if (w->objectName() == "closeBtn") { *result = HTCLOSE; return true; }
                         // If it's another interactive widget (like a search input if we put one there later), return HTCLIENT
+<<<<<<< Updated upstream
+=======
+>>>>>>> c3d52a43d9cc4b0e01f4acf0df3b62a007d30ac9
+>>>>>>> Stashed changes
                         if (qobject_cast<QPushButton*>(w) || qobject_cast<QLineEdit*>(w)) {
                             return false; 
                         }
@@ -381,6 +431,9 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
                 }
             }
         }
+    } else if (obj == m_sidebarAvatarLabel && event->type() == QEvent::MouseButtonPress) {
+        showAvatarPicker();
+        return true;
     } else if (obj == m_sidebarWidget) {
         // Sidebar is always expanded — no animation
     }
@@ -625,6 +678,7 @@ void MainWindow::dropEvent(QDropEvent* event) {
     }
 
     if (count > 0) {
+        updateXP(count * 50); // 50 XP per installed patch
         m_statusLabel->setText(QString("Installed %1 patch%2").arg(count).arg(count > 1 ? "es" : ""));
         if (m_currentMode == AppMode::Library) {
             displayLibrary();
@@ -658,7 +712,15 @@ void MainWindow::initUI() {
     
     // ──── Material Navigation Rail (Sidebar) ────
     m_sidebarWidget = new QWidget();
+<<<<<<< Updated upstream
     m_sidebarWidget->setFixedWidth(220);
+=======
+<<<<<<< HEAD
+    m_sidebarWidget->setFixedWidth(180);
+=======
+    m_sidebarWidget->setFixedWidth(220);
+>>>>>>> c3d52a43d9cc4b0e01f4acf0df3b62a007d30ac9
+>>>>>>> Stashed changes
     m_sidebarWidget->setAttribute(Qt::WA_StyledBackground);
     m_sidebarWidget->setAutoFillBackground(false);
     m_sidebarWidget->setStyleSheet(QString(
@@ -677,7 +739,15 @@ void MainWindow::initUI() {
     sidebarInner->setStyleSheet("background: transparent; border: none;");
     
     QVBoxLayout* sidebarInnerLayout = new QVBoxLayout(sidebarInner);
+<<<<<<< Updated upstream
     sidebarInnerLayout->setContentsMargins(20, 24, 20, 16);
+=======
+<<<<<<< HEAD
+    sidebarInnerLayout->setContentsMargins(16, 24, 16, 16);
+=======
+    sidebarInnerLayout->setContentsMargins(20, 24, 20, 16);
+>>>>>>> c3d52a43d9cc4b0e01f4acf0df3b62a007d30ac9
+>>>>>>> Stashed changes
     sidebarInnerLayout->setSpacing(12);
     
     QVBoxLayout* sidebarOuterLayout = new QVBoxLayout(m_sidebarWidget);
@@ -739,7 +809,15 @@ void MainWindow::initUI() {
 
     // ── Animated sidebar indicator bar ──
     m_sidebarIndicator = new QWidget(m_sidebarWidget);
+<<<<<<< Updated upstream
     m_sidebarIndicator->setFixedSize(4, 24);
+=======
+<<<<<<< HEAD
+    m_sidebarIndicator->setFixedSize(6, 28);
+=======
+    m_sidebarIndicator->setFixedSize(4, 24);
+>>>>>>> c3d52a43d9cc4b0e01f4acf0df3b62a007d30ac9
+>>>>>>> Stashed changes
     m_sidebarIndicator->setStyleSheet("background: #EFECE3; border-radius: 2px;");
     m_sidebarIndicator->raise();
     
@@ -749,6 +827,64 @@ void MainWindow::initUI() {
 
     sidebarInnerLayout->addStretch();
 
+<<<<<<< Updated upstream
+=======
+<<<<<<< HEAD
+    // ── Sidebar Profile ──
+    m_sidebarProfileWidget = new QWidget(m_sidebarWidget);
+    m_sidebarProfileWidget->setFixedHeight(100);
+    QVBoxLayout* profileLayout = new QVBoxLayout(m_sidebarProfileWidget);
+    profileLayout->setContentsMargins(16, 0, 16, 16);
+    profileLayout->setSpacing(8);
+
+    QHBoxLayout* profileUpper = new QHBoxLayout();
+    m_sidebarAvatarLabel = new QLabel();
+    m_sidebarAvatarLabel->setFixedSize(44, 44);
+    m_sidebarAvatarLabel->setScaledContents(true);
+    m_sidebarAvatarLabel->setStyleSheet("background: rgba(255,255,255,10); border-radius: 22px; border: 2px solid rgba(255,255,255,20); overflow: hidden;");
+    m_sidebarAvatarLabel->setCursor(Qt::PointingHandCursor);
+    
+    // Set default avatar
+    m_sidebarAvatarLabel->setText(m_username.left(1).toUpper());
+    m_sidebarAvatarLabel->setAlignment(Qt::AlignCenter);
+    m_sidebarAvatarLabel->setStyleSheet(m_sidebarAvatarLabel->styleSheet() + " color: white; font-weight: bold; font-size: 18px;");
+
+    m_sidebarUsernameLabel = new QLabel(m_username);
+    m_sidebarUsernameLabel->setStyleSheet("color: white; font-weight: bold; font-size: 14px;");
+
+    profileUpper->addWidget(m_sidebarAvatarLabel);
+    profileUpper->addWidget(m_sidebarUsernameLabel);
+    profileUpper->addStretch();
+    profileLayout->addLayout(profileUpper);
+
+    m_sidebarLevelLabel = new QLabel("Level 1");
+    m_sidebarLevelLabel->setStyleSheet("color: #D0BCFF; font-size: 11px; font-weight: bold;");
+    profileLayout->addWidget(m_sidebarLevelLabel);
+
+    m_sidebarLevelProgress = new QProgressBar();
+    m_sidebarLevelProgress->setFixedHeight(4);
+    m_sidebarLevelProgress->setTextVisible(false);
+    m_sidebarLevelProgress->setStyleSheet("QProgressBar { background: rgba(255,255,255,10); border: none; border-radius: 2px; } QProgressBar::chunk { background: #D0BCFF; border-radius: 2px; }");
+    profileLayout->addWidget(m_sidebarLevelProgress);
+
+    sidebarOuterLayout->addWidget(m_sidebarProfileWidget);
+    
+    // Update profile from initial data
+    if (!m_isGuest && !m_userData.isEmpty()) {
+        updateXP(0); 
+        QString av = m_userData["avatar_url"].toString();
+        if (!av.isEmpty()) {
+            QPixmap p; p.loadFromData(QByteArray::fromBase64(av.toUtf8()));
+            if (!p.isNull()) m_sidebarAvatarLabel->setPixmap(p);
+        }
+    } else if (m_isGuest) {
+        m_sidebarLevelLabel->setText("Guest Mode");
+        m_sidebarLevelProgress->hide();
+    }
+
+=======
+>>>>>>> c3d52a43d9cc4b0e01f4acf0df3b62a007d30ac9
+>>>>>>> Stashed changes
     m_tabSettings = new GlassButton(MaterialIcons::Settings, " Settings", "", Colors::OUTLINE);
     m_tabSettings->setFixedHeight(45);
     connect(m_tabSettings, &QPushButton::clicked, this, [this](){ switchMode(AppMode::Settings); });
@@ -780,6 +916,7 @@ void MainWindow::initUI() {
     m_infoTitleLabel->hide(); // Start collapsed
     
     rootLayout->addWidget(m_sidebarWidget);
+    m_sidebarAvatarLabel->installEventFilter(this);
 
     // ──── Content Area ────
     QWidget* contentWidget = new QWidget();
@@ -1169,7 +1306,15 @@ void MainWindow::initUI() {
         if (m_sidebarIndicator && m_tabLua) {
             QPoint tabPos = m_tabLua->mapTo(m_sidebarWidget, QPoint(0, 0));
             int indicatorY = tabPos.y() + (m_tabLua->height() - m_sidebarIndicator->height()) / 2;
+<<<<<<< Updated upstream
             m_sidebarIndicator->move(4, indicatorY);
+=======
+<<<<<<< HEAD
+            m_sidebarIndicator->move(6, indicatorY);
+=======
+            m_sidebarIndicator->move(4, indicatorY);
+>>>>>>> c3d52a43d9cc4b0e01f4acf0df3b62a007d30ac9
+>>>>>>> Stashed changes
             m_sidebarIndicator->show();
         }
     });
@@ -1311,6 +1456,7 @@ void MainWindow::displayRandomGames() {
         nameLbl->setMaximumWidth(700);
         heroLayout->addWidget(nameLbl);
         
+<<<<<<< Updated upstream
         // Subtitle with App ID
         QLabel* subtitleLbl = new QLabel(QString("App ID: %1").arg(featuredId));
         subtitleLbl->setStyleSheet(
@@ -1319,6 +1465,37 @@ void MainWindow::displayRandomGames() {
         );
         heroLayout->addWidget(subtitleLbl);
         
+=======
+<<<<<<< HEAD
+        // Description - one to two lines of context
+        QLabel* descLbl = new QLabel("Experience high-performance community patches, optimized performance tweaks, and the latest trending features for your favorite games.");
+        descLbl->setStyleSheet(
+            "font-size: 16px; font-weight: 500; color: rgba(255, 255, 255, 180); background: transparent; border: none;"
+            " font-family: 'Segoe UI'; margin-top: 8px; margin-bottom: 2px;"
+        );
+        descLbl->setWordWrap(true);
+        descLbl->setMaximumWidth(650);
+        heroLayout->addWidget(descLbl);
+        
+        // Subtitle with App ID
+        QLabel* subtitleLbl = new QLabel(QString("App ID: %1").arg(featuredId));
+        subtitleLbl->setStyleSheet(
+            "font-size: 14px; font-weight: 500; color: #8FABD4; background: transparent; border: none;"
+            " font-family: 'Segoe UI'; margin-top: 6px;"
+        );
+        heroLayout->addWidget(subtitleLbl);
+        
+=======
+        // Subtitle with App ID
+        QLabel* subtitleLbl = new QLabel(QString("App ID: %1").arg(featuredId));
+        subtitleLbl->setStyleSheet(
+            "font-size: 14px; font-weight: 500; color: #8FABD4; background: transparent; border: none;"
+            " font-family: 'Segoe UI'; margin-top: 6px;"
+        );
+        heroLayout->addWidget(subtitleLbl);
+        
+>>>>>>> c3d52a43d9cc4b0e01f4acf0df3b62a007d30ac9
+>>>>>>> Stashed changes
         m_heroStack->addWidget(slide);
         updateHeroIndicators();
 
@@ -1946,6 +2123,7 @@ void MainWindow::onGameDetailsBack() {
 
 void MainWindow::onInstallFromDetails(const QString& appId, const QString& name, bool hasFix) {
     // This runs the same logic as the old Add to Library button
+    updateXP(50);
     runPatchLogic();
 }
 
@@ -2160,7 +2338,15 @@ void MainWindow::updateModeUI() {
         // Map the tab's center-left position to the sidebar widget's coordinate space
         QPoint tabPos = activeTab->mapTo(m_sidebarWidget, QPoint(0, 0));
         int indicatorY = tabPos.y() + (activeTab->height() - m_sidebarIndicator->height()) / 2;
+<<<<<<< Updated upstream
         QPoint targetPos(4, indicatorY);
+=======
+<<<<<<< HEAD
+        QPoint targetPos(6, indicatorY);
+=======
+        QPoint targetPos(4, indicatorY);
+>>>>>>> c3d52a43d9cc4b0e01f4acf0df3b62a007d30ac9
+>>>>>>> Stashed changes
         
         if (m_sidebarIndicator->pos().isNull() || !m_sidebarIndicator->isVisible()) {
             // First time — snap directly without animation
@@ -2414,3 +2600,109 @@ void MainWindow::onClearLibraryClicked() {
     }
 }
 
+void MainWindow::setInitialUser(const QString& username, const QJsonObject& data, bool guest) {
+    m_username = username;
+    m_userData = data;
+    m_isGuest = guest;
+    
+    if (m_sidebarUsernameLabel) m_sidebarUsernameLabel->setText(m_username);
+    if (m_topUsernameLabel) m_topUsernameLabel->setText(m_username);
+    if (m_sidebarAvatarLabel) {
+        m_sidebarAvatarLabel->setText(m_username.left(1).toUpper());
+    }
+
+    if (!m_isGuest) {
+        updateXP(0);
+        QString av = m_userData["avatar_url"].toString();
+        if (!av.isEmpty() && m_sidebarAvatarLabel) {
+            QPixmap p; p.loadFromData(QByteArray::fromBase64(av.toUtf8()));
+            if (!p.isNull()) m_sidebarAvatarLabel->setPixmap(p);
+        }
+    } else {
+        if (m_sidebarLevelLabel) m_sidebarLevelLabel->setText("Guest Mode");
+        if (m_sidebarLevelProgress) m_sidebarLevelProgress->hide();
+    }
+}
+
+void MainWindow::updateXP(int amount) {
+    if (m_isGuest) return;
+
+    int currentXP = m_userData["xp"].toInt();
+    int currentLevel = m_userData["level"].toInt();
+    if (currentLevel < 1) currentLevel = 1;
+
+    currentXP += amount;
+
+    // Simple level logic: each level needs level * 100 XP
+    int xpNeeded = currentLevel * 100;
+    while (currentXP >= xpNeeded) {
+        currentXP -= xpNeeded;
+        currentLevel++;
+        xpNeeded = currentLevel * 100;
+        m_statusLabel->setText(QString("Level Up! You are now level %1").arg(currentLevel));
+        m_statusLabel->show();
+        QTimer::singleShot(3000, m_statusLabel, &QLabel::hide);
+    }
+
+    m_userData["xp"] = currentXP;
+    m_userData["level"] = currentLevel;
+
+    // Update UI
+    if (m_sidebarLevelLabel) m_sidebarLevelLabel->setText(QString("Level %1").arg(currentLevel));
+    if (m_sidebarLevelProgress) {
+        m_sidebarLevelProgress->setMaximum(xpNeeded);
+        m_sidebarLevelProgress->setValue(currentXP);
+    }
+
+    // Auto-sync if XP changed significantly
+    if (qAbs(currentXP - m_lastSyncXp) > 20) {
+        syncStats();
+    }
+}
+
+void MainWindow::handleXpTick() {
+    if (m_isGuest) return;
+    m_userData["total_playtime"] = m_userData["total_playtime"].toInt() + 5;
+    updateXP(10); // 10 XP for every 5 minutes
+}
+
+void MainWindow::syncStats() {
+    if (m_isGuest) return;
+
+    QUrl url(Config::WEBSERVER_BASE_URL + "/api/user/profile?username=" + m_username);
+    QNetworkRequest req(url);
+    req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+    m_lastSyncXp = m_userData["xp"].toInt();
+    m_networkManager->post(req, QJsonDocument(m_userData).toJson());
+}
+
+void MainWindow::showAvatarPicker() {
+    if (m_isGuest) return;
+
+    QString path = QFileDialog::getOpenFileName(this, "Select Avatar", "", "Images (*.png *.jpg *.jpeg)");
+    if (path.isEmpty()) return;
+
+    QPixmap pix(path);
+    if (pix.isNull()) return;
+
+    // Scale and crop to square
+    int s = qMin(pix.width(), pix.height());
+    QPixmap square = pix.copy((pix.width()-s)/2, (pix.height()-s)/2, s, s)
+                      .scaled(128, 128, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+
+    // Convert to Base64
+    QByteArray ba;
+    QBuffer buffer(&ba);
+    buffer.open(QIODevice::WriteOnly);
+    square.save(&buffer, "PNG");
+    QString base64 = ba.toBase64();
+
+    m_userData["avatar_url"] = base64;
+    m_sidebarAvatarLabel->setPixmap(square);
+    
+    syncStats(); // Upload immediately
+}
+
+void MainWindow::onProfileUpdated(QNetworkReply* reply) { reply->deleteLater(); }
+void MainWindow::onAvatarUploaded(QNetworkReply* reply) { reply->deleteLater(); }

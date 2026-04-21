@@ -4,6 +4,7 @@ Flask application to serve Lua files for the Steam Lua Patcher desktop app.
 """
 
 from flask import Flask, send_from_directory, jsonify, abort, request, Response, send_file
+from werkzeug.security import generate_password_hash, check_password_hash
 import os
 import json
 import io
@@ -314,7 +315,7 @@ def check_username(username):
     if not username or len(username) < 3 or len(username) > 20:
         return jsonify({'available': False, 'error': 'Username must be 3-20 characters'}), 400
     
-    key = f"users:name:{username.lower()}"
+    key = f"users:profile:{username.lower()}"
     existing = redis_client.get(key)
     return jsonify({
         'username': username,
@@ -323,42 +324,120 @@ def check_username(username):
 
 
 @app.route('/api/user/register', methods=['POST'])
-def register_username():
-    """Register a new unique username"""
+def register_user():
+    """Register a new user with password and initial stats"""
     if not redis_client:
         return jsonify({'error': 'Database unavailable'}), 503
     
     data = request.get_json()
-    if not data or 'username' not in data:
-        return jsonify({'error': 'Username is required'}), 400
+    if not data or 'username' not in data or 'password' not in data:
+        return jsonify({'error': 'Username and password are required'}), 400
     
     username = data['username'].strip()
+    password = data['password']
     
     # Validation
     if len(username) < 3 or len(username) > 20:
         return jsonify({'error': 'Username must be 3-20 characters'}), 400
     
+    if len(password) < 6:
+        return jsonify({'error': 'Password must be at least 6 characters'}), 400
+    
     import re
     if not re.match(r'^[a-zA-Z0-9_]+$', username):
         return jsonify({'error': 'Only letters, numbers, and underscores allowed'}), 400
     
-    key = f"users:name:{username.lower()}"
-    existing = redis_client.get(key)
-    if existing is not None:
+    key = f"users:profile:{username.lower()}"
+    if redis_client.get(key):
         return jsonify({'error': 'Username already taken'}), 409
     
-    # Register
-    user_data = json.dumps({
+    # Register with hashed password and default stats
+    user_data = {
         'username': username,
-        'created_at': datetime.utcnow().isoformat()
-    })
-    redis_client.set(key, user_data)
+        'password_hash': generate_password_hash(password),
+        'created_at': datetime.utcnow().isoformat(),
+        'level': 1,
+        'xp': 0,
+        'total_playtime': 0, # in minutes
+        'games_patched': 0,
+        'avatar_url': '' # Base64 or URL
+    }
+    
+    redis_client.set(key, json.dumps(user_data))
     redis_client.incr('users:count')
+    
+    # Don't return password hash
+    del user_data['password_hash']
     
     return jsonify({
         'success': True,
-        'username': username
+        'user': user_data
     }), 201
+
+
+@app.route('/api/user/login', methods=['POST'])
+def login_user():
+    """Verify user credentials and return profile"""
+    if not redis_client:
+        return jsonify({'error': 'Database unavailable'}), 503
+    
+    data = request.get_json()
+    if not data or 'username' not in data or 'password' not in data:
+        return jsonify({'error': 'Username and password are required'}), 400
+    
+    username = data['username'].strip()
+    password = data['password']
+    
+    key = f"users:profile:{username.lower()}"
+    user_json = redis_client.get(key)
+    
+    if not user_json:
+        return jsonify({'error': 'User not found'}), 404
+    
+    user_data = json.loads(user_json)
+    if not check_password_hash(user_data.get('password_hash', ''), password):
+        return jsonify({'error': 'Invalid password'}), 401
+    
+    # Success
+    del user_data['password_hash']
+    return jsonify({
+        'success': True,
+        'user': user_data
+    })
+
+
+@app.route('/api/user/profile', methods=['GET', 'POST'])
+def handle_profile():
+    """Get or update user profile stats/avatar"""
+    if not redis_client:
+        return jsonify({'error': 'Database unavailable'}), 503
+    
+    username = request.args.get('username')
+    if not username:
+        return jsonify({'error': 'Username required'}), 400
+    
+    key = f"users:profile:{username.lower()}"
+    user_json = redis_client.get(key)
+    if not user_json:
+        return jsonify({'error': 'User not found'}), 404
+    
+    user_data = json.loads(user_json)
+    
+    if request.method == 'POST':
+        updates = request.get_json()
+        if not updates:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        # Only allow updating specific fields
+        allowed_fields = ['level', 'xp', 'total_playtime', 'games_patched', 'avatar_url']
+        for field in allowed_fields:
+            if field in updates:
+                user_data[field] = updates[field]
+        
+        redis_client.set(key, json.dumps(user_data))
+        
+    del user_data['password_hash']
+    return jsonify(user_data)
 
 
 @app.route('/api/user/count')

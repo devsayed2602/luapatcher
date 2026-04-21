@@ -4,6 +4,19 @@
 const QString Colors::SURFACE              = "#000000"; // Absolute black background
 const QString Colors::SURFACE_DIM          = "rgba(0, 0, 0, 0.9)";
 const QString Colors::SURFACE_BRIGHT       = "#8FABD4"; // Dark blue base
+<<<<<<< Updated upstream
+=======
+<<<<<<< HEAD
+const QString Colors::SURFACE_CONTAINER    = "#050505"; // Nearly black
+const QString Colors::SURFACE_CONTAINER_HIGH    = "#0A0A0A";
+const QString Colors::SURFACE_CONTAINER_HIGHEST = "#121212";
+const QString Colors::SURFACE_VARIANT      = "#1A1A1A";
+const QString Colors::ON_SURFACE           = "#EFECE3"; // Cream text
+const QString Colors::ON_SURFACE_VARIANT   = "#8FABD4"; // Light blue secondary text
+const QString Colors::OUTLINE              = "rgba(255, 255, 255, 0.12)"; // Neutral subtle outline
+const QString Colors::OUTLINE_VARIANT      = "rgba(255, 255, 255, 0.06)";
+=======
+>>>>>>> Stashed changes
 const QString Colors::SURFACE_CONTAINER    = "rgba(74, 112, 169, 0.15)"; // Very subtle dark blue for cards overlay
 const QString Colors::SURFACE_CONTAINER_HIGH    = "rgba(74, 112, 169, 0.25)";
 const QString Colors::SURFACE_CONTAINER_HIGHEST = "rgba(74, 112, 169, 0.35)";
@@ -12,6 +25,10 @@ const QString Colors::ON_SURFACE           = "#EFECE3"; // Cream text
 const QString Colors::ON_SURFACE_VARIANT   = "#8FABD4"; // Light blue secondary text
 const QString Colors::OUTLINE              = "rgba(143, 171, 212, 0.25)"; // Light blue outline
 const QString Colors::OUTLINE_VARIANT      = "rgba(143, 171, 212, 0.10)";
+<<<<<<< Updated upstream
+=======
+>>>>>>> c3d52a43d9cc4b0e01f4acf0df3b62a007d30ac9
+>>>>>>> Stashed changes
 
 // Primary (Cream Accent)
 const QString Colors::PRIMARY              = "#EFECE3"; // Action buttons
