@@ -52,6 +52,7 @@ set(SOURCES
     src/terminaldialog.cpp
     src/onboardingdialog.cpp
     src/customtitlebar.cpp
+    src/socialpage.cpp
 )
 
 set(HEADERS
@@ -70,6 +71,7 @@ set(HEADERS
     src/terminaldialog.h
     src/onboardingdialog.h
     src/customtitlebar.h
+    src/socialpage.h
 )
 
 # Add static plugin initialization for static builds
