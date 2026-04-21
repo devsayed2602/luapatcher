@@ -129,6 +129,9 @@ OnboardingDialog::OnboardingDialog(QWidget* parent)
     m_usernameInput = createInput("Username");
     m_passwordInput = createInput("Password", true);
     
+    connect(m_usernameInput, &QLineEdit::returnPressed, this, &OnboardingDialog::onPrimaryClicked);
+    connect(m_passwordInput, &QLineEdit::returnPressed, this, &OnboardingDialog::onPrimaryClicked);
+    
     formLayout->addWidget(m_usernameInput);
     formLayout->addSpacing(12);
     formLayout->addWidget(m_passwordInput);
@@ -244,14 +247,31 @@ void OnboardingDialog::onPrimaryClicked() {
 
 void OnboardingDialog::onAuthFinished(QNetworkReply* reply) {
     reply->deleteLater();
-    QJsonObject obj = QJsonDocument::fromJson(reply->readAll()).object();
+    
+    QByteArray responseData = reply->readAll();
+    QJsonObject obj = QJsonDocument::fromJson(responseData).object();
     
     if (reply->error() == QNetworkReply::NoError && obj["success"].toBool()) {
         m_userData = obj["user"].toObject();
         m_username = m_userData["username"].toString();
         accept();
     } else {
-        m_statusLabel->setText("✗ " + obj["error"].toString("Auth failed"));
+        QString errorMsg = "Auth failed";
+        
+        if (reply->error() != QNetworkReply::NoError) {
+            // If it's a network error but we have a JSON body, use the server's message
+            if (!obj["error"].toString().isEmpty()) {
+                errorMsg = obj["error"].toString();
+            } else {
+                // Otherwise use the Qt network error string
+                errorMsg = reply->errorString();
+            }
+        } else {
+            // No network error, but success was false
+            errorMsg = obj["error"].toString("Auth failed");
+        }
+        
+        m_statusLabel->setText("✗ " + errorMsg);
         m_statusLabel->setStyleSheet("color: #F2B8B5;");
         m_continueBtn->setEnabled(true);
         m_continueBtn->setText(m_currentMode == LOGIN ? "LOGIN" : "SIGN UP");
