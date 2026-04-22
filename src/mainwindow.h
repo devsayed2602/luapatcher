@@ -80,6 +80,7 @@ private slots:
     void onSyncDone(QList<GameInfo> games);
     void onSyncError(QString error);
     void refreshFriendsList();
+    void sendHeartbeat();
     void onSearchChanged(const QString& text);
     void doSearch();
     void onSearchFinished(QNetworkReply* reply);
@@ -213,6 +214,7 @@ private:
     bool m_sidebarExpanded = false;
     QPropertyAnimation* m_sidebarAnimation;
     QTimer* m_sidebarCollapseTimer;
+    QTimer* m_heartbeatTimer = nullptr;
     
     // Animated sidebar indicator bar
     QWidget* m_sidebarIndicator = nullptr;

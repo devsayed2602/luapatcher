@@ -2581,7 +2581,28 @@ void MainWindow::setInitialUser(const QString& username, const QJsonObject& data
         if (m_sidebarLevelProgress) m_sidebarLevelProgress->hide();
     }
     
-    if (m_socialPage) m_socialPage->setUserData(m_username, m_isGuest); refreshFriendsList();
+    if (m_socialPage) m_socialPage->setUserData(m_username, m_isGuest); 
+    
+    if (!m_isGuest && !m_username.isEmpty()) {
+        refreshFriendsList();
+        
+        // Start Heartbeat Timer (every 2 minutes)
+        if (!m_heartbeatTimer) {
+            m_heartbeatTimer = new QTimer(this);
+            connect(m_heartbeatTimer, &QTimer::timeout, this, &MainWindow::sendHeartbeat);
+            m_heartbeatTimer->start(120000); // 120 seconds
+            sendHeartbeat(); // Send first heartbeat immediately
+        }
+    }
+}
+
+void MainWindow::sendHeartbeat() {
+    if (m_isGuest || m_username.isEmpty()) return;
+    
+    // Send heartbeat to server to update last_seen
+    QUrl url(Config::WEBSERVER_BASE_URL + "/api/user/heartbeat?username=" + m_username);
+    QNetworkRequest request(url);
+    m_networkManager->post(request, QByteArray());
 }
 
 void MainWindow::updateXP(int amount) {
@@ -2740,8 +2761,12 @@ void MainWindow::refreshFriendsList() {
             info->setSpacing(2);
             QLabel* name = new QLabel(f["username"].toString());
             name->setStyleSheet("color: white; font-weight: bold; font-size: 13px;");
-            QLabel* status = new QLabel("ONLINE");
-            status->setStyleSheet("color: #2ECC71; font-size: 10px; font-weight: bold;");
+            
+            bool isOnline = f["online"].toBool();
+            QLabel* status = new QLabel(isOnline ? "ONLINE" : "OFFLINE");
+            status->setStyleSheet(QString("color: %1; font-size: 10px; font-weight: bold;")
+                                  .arg(isOnline ? "#2ECC71" : "#95A5A6"));
+            
             info->addWidget(name);
             info->addWidget(status);
             lay->addLayout(info);

@@ -187,6 +187,16 @@ def handle_profile():
     if 'password_hash' in user: del user['password_hash']
     return jsonify(user)
 
+@app.route('/api/user/heartbeat', methods=['POST'])
+def user_heartbeat():
+    if not supabase: return jsonify({'error': 'Database unavailable'}), 503
+    username = request.args.get('username')
+    if not username: return jsonify({'error': 'Username required'}), 400
+    
+    now = datetime.utcnow().isoformat()
+    supabase.table('profiles').update({'last_seen': now}).eq('username', username).execute()
+    return jsonify({'status': 'online', 'timestamp': now})
+
 # --- NEW Social Endpoints ---
 
 @app.route('/api/social/search')
@@ -234,8 +244,27 @@ def get_friends():
         
     if not friend_ids: return jsonify([])
     
-    friends_profiles = supabase.table('profiles').select('username, level, xp, avatar_url').in_('id', friend_ids).execute()
-    return jsonify(friends_profiles.data)
+    friends_profiles = supabase.table('profiles').select('username, level, xp, avatar_url, last_seen').in_('id', friend_ids).execute()
+    
+    # Calculate online status (active in last 5 minutes)
+    enriched_friends = []
+    now = datetime.utcnow()
+    for friend in friends_profiles.data:
+        is_online = False
+        if friend.get('last_seen'):
+            try:
+                # Supabase returns ISO format
+                last_seen = datetime.fromisoformat(friend['last_seen'].replace('Z', '+00:00'))
+                # Replace tzinfo to make it offset-naive for comparison if needed, or use aware comparison
+                diff = (now - last_seen.replace(tzinfo=None)).total_seconds()
+                is_online = diff < 300 # 5 minutes
+            except:
+                is_online = False
+        
+        friend['online'] = is_online
+        enriched_friends.append(friend)
+        
+    return jsonify(enriched_friends)
 
 @app.route('/api/social/requests/pending')
 def get_pending():
