@@ -18,8 +18,9 @@ else()
 endif()
 add_definitions(-DSERVER_ACCESS_TOKEN="${ACCESS_TOKEN}")
 
-# Find Qt6 - Core components only
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network Svg)
+# Find Qt6 - Core components + optional Svg
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network)
+find_package(Qt6 QUIET COMPONENTS Svg)
 
 # Application icon resource (optional)
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/app.rc")
@@ -98,9 +99,17 @@ target_link_libraries(LuaPatcher PRIVATE
     Qt6::Gui
     Qt6::Widgets
     Qt6::Network
-    Qt6::Svg
     dwmapi
 )
+
+# Optionally link Qt6Svg if available
+if(TARGET Qt6::Svg)
+    target_link_libraries(LuaPatcher PRIVATE Qt6::Svg)
+    target_compile_definitions(LuaPatcher PRIVATE HAS_QT_SVG=1)
+    message(STATUS "Qt6Svg found - using SVG icon engine")
+else()
+    message(STATUS "Qt6Svg NOT found - using fallback QPainterPath icons")
+endif()
 
 # Static build configuration
 if(BUILD_STATIC)

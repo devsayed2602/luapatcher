@@ -2,11 +2,13 @@
 #define MATERIALICONS_H
 
 #include <QPainter>
+#include <QPainterPath>
 #include <QRect>
 #include <QColor>
+#ifdef HAS_QT_SVG
 #include <QtSvg/QSvgRenderer>
+#endif
 #include <QByteArray>
-#include <QMap>
 
 class MaterialIcons {
 public:
@@ -32,17 +34,109 @@ public:
     };
 
     static void draw(QPainter& p, const QRectF& rect, const QColor& color, Icon icon) {
-        QString svgString = getSvgString(icon);
-        if (svgString.isEmpty()) return;
+#ifdef HAS_QT_SVG
+        // Premium SVG rendering path
+        static QSvgRenderer* renderers[256] = { nullptr };
         
-        // Dynamically replace the keyword "currentColor" with the passed color if needed
-        // but for premium UI, we use the embedded gradients!
+        if (!renderers[icon]) {
+            QString svgString = getSvgString(icon);
+            if (svgString.isEmpty()) return;
+            renderers[icon] = new QSvgRenderer(svgString.toUtf8());
+        }
         
-        QSvgRenderer renderer(svgString.toUtf8());
-        renderer.render(&p, rect);
+        renderers[icon]->render(&p, rect);
+#else
+        // Fallback QPainterPath rendering (no Qt6Svg needed)
+        p.save();
+        p.setRenderHint(QPainter::Antialiasing);
+        p.translate(rect.topLeft());
+        qreal sx = rect.width() / 24.0;
+        qreal sy = rect.height() / 24.0;
+        p.scale(sx, sy);
+        p.setPen(Qt::NoPen);
+        p.setBrush(color);
+
+        switch (icon) {
+        case Home: {
+            QPainterPath path;
+            path.moveTo(3, 12); path.lineTo(12, 3); path.lineTo(21, 12);
+            path.lineTo(19, 12); path.lineTo(19, 20); path.lineTo(15, 20);
+            path.lineTo(15, 14); path.lineTo(9, 14); path.lineTo(9, 20);
+            path.lineTo(5, 20); path.lineTo(5, 12); path.closeSubpath();
+            p.drawPath(path);
+            break;
+        }
+        case Library: {
+            p.drawRect(QRectF(3, 4, 4, 16));
+            p.drawRect(QRectF(9, 4, 4, 16));
+            p.drawRect(QRectF(15, 4, 4, 16));
+            break;
+        }
+        case Search: {
+            QColor c = p.brush().color();
+            p.setBrush(Qt::NoBrush);
+            QPen pen(c, 2.2); pen.setCapStyle(Qt::RoundCap); p.setPen(pen);
+            p.drawEllipse(QPointF(11, 11), 6, 6);
+            p.drawLine(QPointF(16, 16), QPointF(20, 20));
+            break;
+        }
+        case Refresh: {
+            QColor c = p.brush().color();
+            p.setBrush(Qt::NoBrush);
+            QPen pen(c, 2.2); pen.setCapStyle(Qt::RoundCap); p.setPen(pen);
+            p.drawArc(QRectF(4, 4, 16, 16), 90 * 16, -270 * 16);
+            p.setPen(Qt::NoPen); p.setBrush(c);
+            QPainterPath arrow; arrow.moveTo(20, 8); arrow.lineTo(20, 3); arrow.lineTo(15, 8); arrow.closeSubpath();
+            p.drawPath(arrow);
+            break;
+        }
+        case Settings: {
+            p.drawEllipse(QPointF(12, 12), 3, 3);
+            QColor c = p.brush().color();
+            p.setBrush(Qt::NoBrush); QPen pen(c, 2); p.setPen(pen);
+            p.drawEllipse(QPointF(12, 12), 8, 8);
+            break;
+        }
+        case Download: {
+            p.drawRect(QRectF(11, 3, 2, 12));
+            QPainterPath arrow; arrow.moveTo(7, 13); arrow.lineTo(12, 18); arrow.lineTo(17, 13); arrow.closeSubpath();
+            p.drawPath(arrow);
+            p.drawRect(QRectF(4, 20, 16, 2));
+            break;
+        }
+        case PersonAdd: {
+            p.drawEllipse(QPointF(10, 7), 4, 4);
+            QPainterPath body; body.addRoundedRect(QRectF(2, 14, 16, 8), 4, 4); p.drawPath(body);
+            p.drawRect(QRectF(18, 10, 2, 6));
+            p.drawRect(QRectF(16, 12, 6, 2));
+            break;
+        }
+        case Logout: {
+            QColor c = p.brush().color();
+            p.setBrush(Qt::NoBrush); QPen pen(c, 2); pen.setCapStyle(Qt::RoundCap); p.setPen(pen);
+            p.drawLine(QPointF(9, 21), QPointF(5, 21));
+            p.drawLine(QPointF(5, 21), QPointF(3, 19));
+            p.drawLine(QPointF(3, 19), QPointF(3, 5));
+            p.drawLine(QPointF(3, 5), QPointF(5, 3));
+            p.drawLine(QPointF(5, 3), QPointF(9, 3));
+            p.drawLine(QPointF(9, 11), QPointF(21, 12));
+            p.setPen(Qt::NoPen); p.setBrush(c);
+            QPainterPath arrow; arrow.moveTo(17, 8); arrow.lineTo(21, 12); arrow.lineTo(17, 16); arrow.closeSubpath();
+            p.drawPath(arrow);
+            break;
+        }
+        default: {
+            p.drawEllipse(QPointF(12, 12), 6, 6);
+            break;
+        }
+        }
+
+        p.restore();
+#endif
     }
 
 private:
+#ifdef HAS_QT_SVG
     static QString getSvgString(Icon icon) {
         switch (icon) {
             case Home: return R"SVG(
@@ -89,12 +183,15 @@ private:
             case Steam: return R"SVG(
                 <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <defs>
-                        <linearGradient id="gradSteamAccent" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" stop-color="#66C0F4" />
-                            <stop offset="100%" stop-color="#19548E" />
+                        <linearGradient id="gradRestart" x1="4" y1="2" x2="20" y2="22" gradientUnits="userSpaceOnUse">
+                            <stop offset="0%" stop-color="#7EC8E3" />
+                            <stop offset="100%" stop-color="#3B82F6" />
                         </linearGradient>
                     </defs>
-                    <path d="M12 0C5.373 0 0 5.373 0 12c0 5.485 3.666 10.126 8.653 11.534l3.19-4.577c-.125-.133-.2-.314-.2-.516 0-.348.232-.647.545-.765l.775-2.235c-.035-.11-.055-.226-.055-.347 0-1.066.864-1.93 1.93-1.93 1.066 0 1.93.864 1.93 1.93 0 1.066-.864 1.93-1.93 1.93-.844 0-1.554-.54-1.81-1.286l-2.298.796c.114.305.176.634.176.976 0 1.58-1.28 2.86-2.86 2.86-.33 0-.648-.056-.94-.158l-3.21 4.606C7.382 23.633 9.615 24 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm4.84 8.78c-1.396 0-2.527 1.13-2.527 2.526 0 1.396 1.13 2.527 2.527 2.527 1.396 0 2.527-1.13 2.527-2.527 0-1.396-1.13-2.527-2.527-2.527zm0 1.1c.787 0 1.427.64 1.427 1.426 0 .788-.64 1.428-1.427 1.428-.787 0-1.426-.64-1.426-1.428 0-.787.64-1.426 1.426-1.426zm-7.666 7.424c-1.136 0-2.056-.92-2.056-2.056 0-1.136.92-2.057 2.056-2.057 1.137 0 2.057.92 2.057 2.057 0 1.136-.92 2.056-2.057 2.056zm0-.5c.857 0 1.556-.7 1.556-1.557 0-.856-.7-1.556-1.556-1.556-.856 0-1.556.7-1.556 1.556 0 .857.7 1.557 1.556 1.557z" fill="url(#gradSteamAccent)"/>
+                    <path d="M17.65 6.35A7.96 7.96 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6" stroke="url(#gradRestart)" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+                    <path d="M20.5 2.5v5.5H15" stroke="url(#gradRestart)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                    <line x1="12" y1="9" x2="12" y2="12.5" stroke="#EFECE3" stroke-width="1.8" stroke-linecap="round"/>
+                    <path d="M9.17 10.17a4 4 0 1 0 5.66 0" stroke="#EFECE3" stroke-width="1.6" stroke-linecap="round" fill="none"/>
                 </svg>
             )SVG";
             case PersonAdd: return R"SVG(
@@ -142,7 +239,6 @@ private:
                     <path d="M21 4v5.5h-5.5" stroke="#8FABD4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
             )SVG";
-            // Fallback for others - simple geometric shapes or generic code
             default: return R"SVG(
                 <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <rect x="4" y="4" width="16" height="16" rx="4" fill="#EFECE3" opacity="0.3"/>
@@ -150,6 +246,7 @@ private:
             )SVG";
         }
     }
+#endif
 };
 
 #endif // MATERIALICONS_H
