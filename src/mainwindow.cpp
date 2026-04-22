@@ -407,9 +407,6 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
                 }
             }
         }
-    } else if (obj == m_sidebarAvatarLabel && event->type() == QEvent::MouseButtonPress) {
-        showAvatarPicker();
-        return true;
     } else if (obj == m_topProfileWidget && event->type() == QEvent::MouseButtonPress) {
         ProfileCard* card = new ProfileCard(m_username, m_userData, this);
         // Center on screen or position near the widget
