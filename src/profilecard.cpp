@@ -7,7 +7,7 @@
 #include <QMouseEvent>
 
 ProfileCard::ProfileCard(const QString& username, const QJsonObject& userData, QWidget* parent)
-    : QDialog(parent, Qt::Dialog | Qt::FramelessWindowHint), 
+    : QDialog(parent, Qt::Popup | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint), 
       m_username(username), m_userData(userData)
 {
     setAttribute(Qt::WA_TranslucentBackground);

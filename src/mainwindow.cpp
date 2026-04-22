@@ -411,7 +411,7 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
             QTimer::singleShot(50, this, [this]() {
                 ProfileCard* card = new ProfileCard(m_username, m_userData, this);
                 card->move(geometry().center() - QPoint(card->width() / 2, card->height() / 2));
-                card->exec();
+                card->show();
             });
             return true;
         }
