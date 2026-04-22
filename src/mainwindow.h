@@ -75,6 +75,7 @@ protected:
     bool eventFilter(QObject *obj, QEvent *event) override;
     void dragEnterEvent(QDragEnterEvent* event) override;
     void dropEvent(QDropEvent* event) override;
+    void dropEvent(QDragEnterEvent* event) override;
 
 private slots:
     void onSyncDone(QList<GameInfo> games);
@@ -103,12 +104,10 @@ private slots:
     void loadVisibleThumbnails();
     
     // User System
-    void updateXP(int amount);
     void syncStats();
     void onProfileUpdated(QNetworkReply* reply);
     void showAvatarPicker();
     void onAvatarUploaded(QNetworkReply* reply);
-    void handleXpTick();
 
     // Game Details
     void onGameDetailsBack();
@@ -180,10 +179,8 @@ private:
     
     // Sidebar Profile
     QWidget* m_sidebarProfileWidget;
-    QLabel* m_sidebarAvatarLabel;
-    QLabel* m_sidebarUsernameLabel;
-    QLabel* m_sidebarLevelLabel;
-    QProgressBar* m_sidebarLevelProgress;
+    QLabel* m_sidebarAvatarLabel = nullptr;
+    QLabel* m_sidebarUsernameLabel = nullptr;
 
     // Right panel profile (matching dashboard design)
     QWidget* m_topProfileWidget;
@@ -209,8 +206,6 @@ private:
     QWidget* m_rightPanelWidget;
     QWidget* m_friendsContainer;
     QVBoxLayout* m_friendsLayout;
-    QLabel* m_topLvlPill = nullptr;
-    QProgressBar* m_topXpBar = nullptr;
     bool m_sidebarExpanded = false;
     QPropertyAnimation* m_sidebarAnimation;
     QTimer* m_sidebarCollapseTimer;

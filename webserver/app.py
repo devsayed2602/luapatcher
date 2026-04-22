@@ -135,8 +135,6 @@ def register_user():
     user_data = {
         'username': username,
         'password_hash': generate_password_hash(password),
-        'level': 1,
-        'xp': 0,
         'games_patched': 0
     }
     
@@ -177,7 +175,7 @@ def handle_profile():
     if request.method == 'POST':
         updates = request.get_json()
         # Allowed fields to update
-        valid_updates = {k: v for k, v in updates.items() if k in ['level', 'xp', 'games_patched', 'avatar_url', 'total_playtime']}
+        valid_updates = {k: v for k, v in updates.items() if k in ['games_patched', 'avatar_url', 'total_playtime']}
         supabase.table('profiles').update(valid_updates).eq('username', username).execute()
         
     res = supabase.table('profiles').select('*').eq('username', username).execute()
@@ -204,7 +202,7 @@ def social_search():
     query = request.args.get('query', '')
     if len(query) < 2: return jsonify([])
     
-    res = supabase.table('profiles').select('username, level, avatar_url').ilike('username', f'%{query}%').limit(10).execute()
+    res = supabase.table('profiles').select('username, avatar_url').ilike('username', f'%{query}%').limit(10).execute()
     return jsonify(res.data)
 
 @app.route('/api/social/request/send', methods=['POST'])
@@ -244,7 +242,7 @@ def get_friends():
         
     if not friend_ids: return jsonify([])
     
-    friends_profiles = supabase.table('profiles').select('username, level, xp, avatar_url, last_seen').in_('id', friend_ids).execute()
+    friends_profiles = supabase.table('profiles').select('username, xp, avatar_url, last_seen').in_('id', friend_ids).execute()
     
     # Calculate online status (active in last 5 minutes)
     enriched_friends = []

@@ -1082,7 +1082,7 @@ void MainWindow::initUI() {
 
     // Top Right Profile Box - Using a container that catches all clicks
     m_topProfileWidget = new QWidget();
-    m_topProfileWidget->setFixedSize(240, 190);
+    m_topProfileWidget->setFixedSize(240, 100);
     m_topProfileWidget->setObjectName("topProfileCard");
     m_topProfileWidget->setCursor(Qt::PointingHandCursor);
     m_topProfileWidget->setStyleSheet(
@@ -1095,123 +1095,36 @@ void MainWindow::initUI() {
         "}"
     );
     m_topProfileWidget->installEventFilter(this);
-    QVBoxLayout* rpLayout = new QVBoxLayout(m_topProfileWidget);
+    QHBoxLayout* rpLayout = new QHBoxLayout(m_topProfileWidget);
     rpLayout->setContentsMargins(16, 16, 16, 16);
-    rpLayout->setSpacing(10);
+    rpLayout->setSpacing(14);
 
-    // -- Profile top section: avatar centered, name + lvl to the right --
-    QHBoxLayout* rpTopLayout = new QHBoxLayout();
-    rpTopLayout->setSpacing(14);
-    rpTopLayout->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    QString displayName = m_username.isEmpty() ? "Xenon_Hunter" : m_username;
-    QChar firstLetter = displayName.at(0).toUpper();
-
-    // Avatar: 64x64 with white ring and green online dot (matching image 2)
+    // -- Profile top section: avatar centered --
     int avSz = 64;
     QWidget* avatarContainer = new QWidget();
-    avatarContainer->setFixedSize(avSz + 4, avSz + 4);
+    avatarContainer->setFixedSize(avSz, avSz);
     avatarContainer->setStyleSheet("background: transparent;");
-    QPixmap avatarPix(avSz + 4, avSz + 4);
+    QPixmap avatarPix(avSz, avSz);
     avatarPix.fill(Qt::transparent);
     QPainter avatarPainter(&avatarPix);
     avatarPainter.setRenderHint(QPainter::Antialiasing);
-    // White outer ring
-    avatarPainter.setPen(QPen(QColor(180, 190, 200), 2));
-    avatarPainter.setBrush(Qt::NoBrush);
-    avatarPainter.drawEllipse(1, 1, avSz + 1, avSz + 1);
-    // Inner filled circle
     avatarPainter.setBrush(QColor("#8FABD4"));
     avatarPainter.setPen(Qt::NoPen);
-    avatarPainter.drawEllipse(3, 3, avSz - 2, avSz - 2);
-    // Letter
+    avatarPainter.drawEllipse(0, 0, avSz, avSz);
     avatarPainter.setPen(QColor(255, 255, 255));
-    QFont avatarFont("Segoe UI", 22, QFont::Bold);
-    avatarPainter.setFont(avatarFont);
-    avatarPainter.drawText(QRect(3, 3, avSz - 2, avSz - 2), Qt::AlignCenter, QString(firstLetter));
-    // Green online dot (bottom-right, matching image 2)
-    avatarPainter.setBrush(QColor("#2ECC71"));
-    avatarPainter.setPen(QPen(QColor(30, 42, 58), 3));
-    avatarPainter.drawEllipse(44, 44, 16, 16);
+    avatarPainter.setFont(QFont("Segoe UI", 22, QFont::Bold));
+    avatarPainter.drawText(avatarPix.rect(), Qt::AlignCenter, m_username.isEmpty() ? "U" : m_username.left(1).toUpper());
     avatarPainter.end();
     QLabel* avatarLabel = new QLabel(avatarContainer);
     avatarLabel->setPixmap(avatarPix);
-    avatarLabel->setGeometry(0, 0, avSz + 4, avSz + 4);
-    avatarLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
     avatarContainer->setAttribute(Qt::WA_TransparentForMouseEvents);
-    rpTopLayout->addWidget(avatarContainer);
+    rpLayout->addWidget(avatarContainer);
 
-    // Name + LVL pill to the right of avatar
-    QVBoxLayout* nameLayout = new QVBoxLayout();
-    nameLayout->setSpacing(6);
-    nameLayout->setAlignment(Qt::AlignVCenter);
-    m_topUsernameLabel = new QLabel(displayName);
+    m_topUsernameLabel = new QLabel(m_username.isEmpty() ? "User" : m_username);
     m_topUsernameLabel->setStyleSheet("font-size: 15px; font-weight: bold; color: white; background: transparent;");
-    m_topUsernameLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
-    nameLayout->addWidget(m_topUsernameLabel);
+    rpLayout->addWidget(m_topUsernameLabel);
+    rpLayout->addStretch();
 
-    // LVL pill + progress bar row
-    QHBoxLayout* lvlLayout = new QHBoxLayout();
-    lvlLayout->setSpacing(6);
-    m_topLvlPill = new QLabel("LVL 1");
-    m_topLvlPill->setFixedHeight(18);
-    m_topLvlPill->setStyleSheet("background: rgba(74, 112, 169, 0.5); border-radius: 4px; padding: 1px 8px; font-size: 10px; font-weight: bold; color: white;");
-    lvlLayout->addWidget(m_topLvlPill);
-    // Progress bar
-    m_topXpBar = new QProgressBar();
-    m_topXpBar->setFixedSize(50, 4);
-    m_topXpBar->setRange(0, 100);
-    m_topXpBar->setValue(0);
-    m_topXpBar->setTextVisible(false);
-    m_topXpBar->setStyleSheet(
-        "QProgressBar { background: rgba(255,255,255,0.08); border-radius: 2px; border: none; }"
-        "QProgressBar::chunk { background: white; border-radius: 2px; }"
-    );
-    lvlLayout->addWidget(m_topXpBar, 0, Qt::AlignVCenter);
-    lvlLayout->addStretch();
-    nameLayout->addLayout(lvlLayout);
-    rpTopLayout->addLayout(nameLayout);
-    rpTopLayout->addStretch();
-    rpLayout->addLayout(rpTopLayout);
-
-    QHBoxLayout* rpStatsLayout = new QHBoxLayout();
-    rpStatsLayout->setSpacing(8);
-    QWidget* achBox = new QWidget();
-    achBox->setFixedHeight(65);
-    achBox->setStyleSheet("background: #2C3545; border-radius: 12px;");
-    QVBoxLayout* achL = new QVBoxLayout(achBox);
-    achL->setAlignment(Qt::AlignCenter);
-    achL->setContentsMargins(0, 0, 0, 0);
-    achL->setSpacing(4);
-    QLabel* achNum = new QLabel("128");
-    achNum->setStyleSheet("color: white; font-size: 14px; font-weight: 900; background: transparent;");
-    achNum->setAlignment(Qt::AlignCenter);
-    QLabel* achText = new QLabel("ACHIEVEMENTS");
-    achText->setStyleSheet(QString("color: %1; font-size: 9px; font-weight: bold; background: transparent;").arg(Colors::ON_SURFACE_VARIANT));
-    achText->setAlignment(Qt::AlignCenter);
-    achL->addWidget(achNum);
-    achL->addWidget(achText);
-    achBox->setAttribute(Qt::WA_TransparentForMouseEvents); // Pass clicks up
-    rpStatsLayout->addWidget(achBox);
-
-    QWidget* folBox = new QWidget();
-    folBox->setFixedHeight(65);
-    folBox->setStyleSheet("background: #2C3545; border-radius: 12px;");
-    QVBoxLayout* folL = new QVBoxLayout(folBox);
-    folL->setAlignment(Qt::AlignCenter);
-    folL->setContentsMargins(0, 0, 0, 0);
-    folL->setSpacing(4);
-    QLabel* folNum = new QLabel("1.2K");
-    folNum->setStyleSheet("color: white; font-size: 14px; font-weight: 900; background: transparent;");
-    folNum->setAlignment(Qt::AlignCenter);
-    QLabel* folText = new QLabel("FOLLOWERS");
-    folText->setStyleSheet(QString("color: %1; font-size: 9px; font-weight: bold; background: transparent;").arg(Colors::ON_SURFACE_VARIANT));
-    folText->setAlignment(Qt::AlignCenter);
-    folL->addWidget(folNum);
-    folL->addWidget(folText);
-    folBox->setAttribute(Qt::WA_TransparentForMouseEvents); // Pass clicks up
-    rpStatsLayout->addWidget(folBox);
-
-    rpLayout->addLayout(rpStatsLayout);
     rightLayout->addWidget(m_topProfileWidget);
     
     // Ensure ALL children are mouse-transparent so the main widget catches the click
@@ -2083,7 +1996,6 @@ void MainWindow::onGameDetailsBack() {
 
 void MainWindow::onInstallFromDetails(const QString& appId, const QString& name, bool hasFix) {
     // This runs the same logic as the old Add to Library button
-    updateXP(50);
     runPatchLogic();
 }
 
@@ -2563,23 +2475,7 @@ void MainWindow::setInitialUser(const QString& username, const QJsonObject& data
     m_userData = data;
     m_isGuest = guest;
     
-    if (m_sidebarUsernameLabel) m_sidebarUsernameLabel->setText(m_username);
     if (m_topUsernameLabel) m_topUsernameLabel->setText(m_username);
-    if (m_sidebarAvatarLabel) {
-        m_sidebarAvatarLabel->setText(m_username.left(1).toUpper());
-    }
-
-    if (!m_isGuest) {
-        updateXP(0);
-        QString av = m_userData["avatar_url"].toString();
-        if (!av.isEmpty() && m_sidebarAvatarLabel) {
-            QPixmap p; p.loadFromData(QByteArray::fromBase64(av.toUtf8()));
-            if (!p.isNull()) m_sidebarAvatarLabel->setPixmap(p);
-        }
-    } else {
-        if (m_sidebarLevelLabel) m_sidebarLevelLabel->setText("Guest Mode");
-        if (m_sidebarLevelProgress) m_sidebarLevelProgress->hide();
-    }
     
     if (m_socialPage) m_socialPage->setUserData(m_username, m_isGuest); 
     
@@ -2604,96 +2500,6 @@ void MainWindow::sendHeartbeat() {
     QNetworkRequest request(url);
     m_networkManager->post(request, QByteArray());
 }
-
-void MainWindow::updateXP(int amount) {
-    if (m_isGuest) return;
-
-    int currentXP = m_userData["xp"].toInt();
-    int currentLevel = m_userData["level"].toInt();
-    if (currentLevel < 1) currentLevel = 1;
-
-    currentXP += amount;
-
-    // Simple level logic: each level needs level * 100 XP
-    int xpNeeded = currentLevel * 100;
-    while (currentXP >= xpNeeded) {
-        currentXP -= xpNeeded;
-        currentLevel++;
-        xpNeeded = currentLevel * 100;
-        m_statusLabel->setText(QString("Level Up! You are now level %1").arg(currentLevel));
-        m_statusLabel->show();
-        QTimer::singleShot(3000, m_statusLabel, &QLabel::hide);
-    }
-
-    m_userData["xp"] = currentXP;
-    m_userData["level"] = currentLevel;
-
-    // Update UI
-    if (m_sidebarLevelLabel) m_sidebarLevelLabel->setText(QString("Level %1").arg(currentLevel));
-    if (m_sidebarLevelProgress) {
-        m_sidebarLevelProgress->setMaximum(xpNeeded);
-        m_sidebarLevelProgress->setValue(currentXP);
-    }
-    
-    // Update Top Profile UI
-    if (m_topLvlPill) m_topLvlPill->setText(QString("LVL %1").arg(currentLevel));
-    if (m_topXpBar) {
-        m_topXpBar->setMaximum(xpNeeded);
-        m_topXpBar->setValue(currentXP);
-    }
-
-    // Auto-sync if XP changed significantly
-    if (qAbs(currentXP - m_lastSyncXp) > 20) {
-        syncStats();
-    }
-}
-
-void MainWindow::handleXpTick() {
-    if (m_isGuest) return;
-    m_userData["total_playtime"] = m_userData["total_playtime"].toInt() + 5;
-    updateXP(10); // 10 XP for every 5 minutes
-}
-
-void MainWindow::syncStats() {
-    if (m_isGuest) return;
-
-    QUrl url(Config::WEBSERVER_BASE_URL + "/api/user/profile?username=" + m_username);
-    QNetworkRequest req(url);
-    req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-
-    m_lastSyncXp = m_userData["xp"].toInt();
-    m_networkManager->post(req, QJsonDocument(m_userData).toJson());
-}
-
-void MainWindow::showAvatarPicker() {
-    if (m_isGuest) return;
-
-    QString path = QFileDialog::getOpenFileName(this, "Select Avatar", "", "Images (*.png *.jpg *.jpeg)");
-    if (path.isEmpty()) return;
-
-    QPixmap pix(path);
-    if (pix.isNull()) return;
-
-    // Scale and crop to square
-    int s = qMin(pix.width(), pix.height());
-    QPixmap square = pix.copy((pix.width()-s)/2, (pix.height()-s)/2, s, s)
-                      .scaled(128, 128, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-
-    // Convert to Base64
-    QByteArray ba;
-    QBuffer buffer(&ba);
-    buffer.open(QIODevice::WriteOnly);
-    square.save(&buffer, "PNG");
-    QString base64 = ba.toBase64();
-
-    m_userData["avatar_url"] = base64;
-    m_sidebarAvatarLabel->setPixmap(square);
-    
-    syncStats(); // Upload immediately
-}
-
-void MainWindow::onProfileUpdated(QNetworkReply* reply) { reply->deleteLater(); }
-void MainWindow::onAvatarUploaded(QNetworkReply* reply) { reply->deleteLater(); }
 
 void MainWindow::refreshFriendsList() {
     if (m_isGuest || m_username.isEmpty()) return;
