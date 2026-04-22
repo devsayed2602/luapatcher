@@ -127,6 +127,9 @@ QToolTip {
 }
 
 int main(int argc, char *argv[]) {
+    QCoreApplication::setOrganizationName("leVi Studios");
+    QCoreApplication::setApplicationName("LuaPatcher");
+
     QApplication app(argc, argv);
     app.setWindowIcon(QIcon("logo.ico"));
     app.setStyle("Fusion");
