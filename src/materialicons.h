@@ -91,40 +91,107 @@ public:
             break;
         }
         case Settings: {
-            p.drawEllipse(QPointF(12, 12), 3, 3);
-            QColor c = p.brush().color();
-            p.setBrush(Qt::NoBrush); QPen pen(c, 2); p.setPen(pen);
-            p.drawEllipse(QPointF(12, 12), 8, 8);
-            break;
-        }
-        case Download: {
-            p.drawRect(QRectF(11, 3, 2, 12));
-            QPainterPath arrow; arrow.moveTo(7, 13); arrow.lineTo(12, 18); arrow.lineTo(17, 13); arrow.closeSubpath();
-            p.drawPath(arrow);
-            p.drawRect(QRectF(4, 20, 16, 2));
-            break;
-        }
-        case PersonAdd: {
-            p.drawEllipse(QPointF(10, 7), 4, 4);
-            QPainterPath body; body.addRoundedRect(QRectF(2, 14, 16, 8), 4, 4); p.drawPath(body);
-            p.drawRect(QRectF(18, 10, 2, 6));
-            p.drawRect(QRectF(16, 12, 6, 2));
-            break;
-        }
-        case Logout: {
-            QColor c = p.brush().color();
-            p.setBrush(Qt::NoBrush); QPen pen(c, 2); pen.setCapStyle(Qt::RoundCap); p.setPen(pen);
-            p.drawLine(QPointF(9, 21), QPointF(5, 21));
-            p.drawLine(QPointF(5, 21), QPointF(3, 19));
-            p.drawLine(QPointF(3, 19), QPointF(3, 5));
-            p.drawLine(QPointF(3, 5), QPointF(5, 3));
-            p.drawLine(QPointF(5, 3), QPointF(9, 3));
-            p.drawLine(QPointF(9, 11), QPointF(21, 12));
+            // Gear cog icon
+            QColor c = color;
+            p.setBrush(Qt::NoBrush);
+            QPen pen(c, 2); pen.setCapStyle(Qt::RoundCap); p.setPen(pen);
+            // Outer gear teeth (8 notches via lines)
+            for (int i = 0; i < 8; i++) {
+                double angle = i * 45.0 * 3.14159 / 180.0;
+                double ix = 12 + 7 * qCos(angle);
+                double iy = 12 + 7 * qSin(angle);
+                double ox = 12 + 9.5 * qCos(angle);
+                double oy = 12 + 9.5 * qSin(angle);
+                p.drawLine(QPointF(ix, iy), QPointF(ox, oy));
+            }
+            // Outer circle
+            p.drawEllipse(QPointF(12, 12), 7, 7);
+            // Inner filled circle
             p.setPen(Qt::NoPen); p.setBrush(c);
-            QPainterPath arrow; arrow.moveTo(17, 8); arrow.lineTo(21, 12); arrow.lineTo(17, 16); arrow.closeSubpath();
-            p.drawPath(arrow);
+            p.drawEllipse(QPointF(12, 12), 3, 3);
             break;
         }
+        case Steam: {
+            // Circular restart arrow with power symbol
+            QColor c = color;
+            p.setBrush(Qt::NoBrush);
+            QPen pen(c, 2.2); pen.setCapStyle(Qt::RoundCap); p.setPen(pen);
+            // Circular arc (270 degrees)
+            p.drawArc(QRectF(4, 4, 16, 16), 90 * 16, -270 * 16);
+            // Arrow head
+            p.setPen(Qt::NoPen); p.setBrush(c);
+            QPainterPath arrow;
+            arrow.moveTo(20, 8); arrow.lineTo(20, 3); arrow.lineTo(15, 8); arrow.closeSubpath();
+            p.drawPath(arrow);
+            // Power symbol: vertical line
+            p.setBrush(Qt::NoBrush);
+            QPen pwrPen(c, 1.8); pwrPen.setCapStyle(Qt::RoundCap); p.setPen(pwrPen);
+            p.drawLine(QPointF(12, 9), QPointF(12, 13));
+            // Power symbol: arc
+            p.drawArc(QRectF(8, 10, 8, 8), 45 * 16, 90 * 16);
+            break;
+        }
+        case Discord: {
+            // Simplified Discord controller shape
+            QPainterPath path;
+            path.addRoundedRect(QRectF(4, 6, 16, 12), 4, 4);
+            p.drawPath(path);
+            p.setBrush(QColor(0,0,0));
+            p.drawEllipse(QPointF(9, 12), 1.5, 1.5);
+            p.drawEllipse(QPointF(15, 12), 1.5, 1.5);
+            break;
+        }
+        case Gamepad: {
+            QPainterPath path;
+            path.addRoundedRect(QRectF(3, 7, 18, 10), 5, 5);
+            p.drawPath(path);
+            // D-pad
+            p.setBrush(QColor(0,0,0));
+            p.drawRect(QRectF(7, 10.5, 4, 1.5));
+            p.drawRect(QRectF(8.25, 9, 1.5, 4.5));
+            // Buttons
+            p.drawEllipse(QPointF(16, 11), 1, 1);
+            p.drawEllipse(QPointF(18, 13), 1, 1);
+            break;
+        }
+        case CheckCircle: {
+            QColor c = color;
+            p.setBrush(Qt::NoBrush);
+            QPen pen(c, 2); p.setPen(pen);
+            p.drawEllipse(QPointF(12, 12), 9, 9);
+            pen.setCapStyle(Qt::RoundCap);
+            pen.setJoinStyle(Qt::RoundJoin);
+            p.setPen(pen);
+            p.drawLine(QPointF(8, 12), QPointF(11, 15));
+            p.drawLine(QPointF(11, 15), QPointF(16, 9));
+            break;
+        }
+        case Flash: {
+            QPainterPath bolt;
+            bolt.moveTo(13, 2); bolt.lineTo(6, 13); bolt.lineTo(11, 13);
+            bolt.lineTo(11, 22); bolt.lineTo(18, 11); bolt.lineTo(13, 11);
+            bolt.closeSubpath();
+            p.drawPath(bolt);
+            break;
+        }
+        case Build: {
+            // Wrench
+            QPainterPath wrench;
+            wrench.moveTo(14.7, 6.3); wrench.lineTo(19, 2); wrench.lineTo(22, 5);
+            wrench.lineTo(17.7, 9.3);
+            wrench.quadTo(18, 10.5, 18, 12);
+            wrench.quadTo(18, 16, 14, 18);
+            wrench.quadTo(10, 20, 6, 16);
+            wrench.quadTo(2, 12, 4, 8);
+            wrench.quadTo(6, 4, 10, 4);
+            wrench.quadTo(12, 4, 14.7, 6.3);
+            p.drawPath(wrench);
+            break;
+        }
+        case RestartAlt:
+        case Add:
+        case Delete:
+        case Group:
         default: {
             p.drawEllipse(QPointF(12, 12), 6, 6);
             break;

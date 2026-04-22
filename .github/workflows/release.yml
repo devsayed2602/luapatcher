@@ -79,6 +79,7 @@ jobs:
         New-Item -ItemType Directory -Force -Path dist
         # Copy both the standalone and the setup for convenience
         Copy-Item "build\LuaPatcher.exe" "dist\LuaPatcher.exe"
+        Copy-Item "logo.ico" "dist\logo.ico"
         Copy-Item "dist_setup\LuaPatcher_Setup.exe" "dist\LuaPatcher_Setup.exe"
 
     - name: Upload Build Artifact
