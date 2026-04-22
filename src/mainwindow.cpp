@@ -51,6 +51,7 @@
 #include <QDropEvent>
 #include <QMimeData>
 #include <QSettings>
+#include <QStandardPaths>
 #include <QMouseEvent>
 #include <QScreen>
 #include <QGuiApplication>

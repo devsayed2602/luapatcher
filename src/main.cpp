@@ -6,6 +6,8 @@
 #include <QSettings>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QStandardPaths>
+#include <QDir>
 
 QString getStyleSheet() {
     return QString(R"(
