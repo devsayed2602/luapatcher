@@ -101,12 +101,6 @@ private slots:
     void updateModeUI();
     void processNextNameFetch();
     void loadVisibleThumbnails();
-    
-    // User System
-    void syncStats();
-    void onProfileUpdated(QNetworkReply* reply);
-    void showAvatarPicker();
-    void onAvatarUploaded(QNetworkReply* reply);
 
     // Game Details
     void onGameDetailsBack();
