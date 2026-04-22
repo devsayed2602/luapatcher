@@ -2549,6 +2549,9 @@ void MainWindow::refreshFriendsList() {
         QLabel* header = m_rightPanelWidget->findChild<QLabel*>("friendsHeader");
         if (header) header->setText(QString("FRIENDS (%1 ONLINE)").arg(friends.size()));
         
+        // Store friends count for profile card
+        m_userData["friends_count"] = friends.size();
+        
         for (const QJsonValue& v : friends) {
             QJsonObject f = v.toObject();
             QWidget* item = new QWidget();

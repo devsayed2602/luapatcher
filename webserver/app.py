@@ -191,7 +191,8 @@ def user_heartbeat():
     username = request.args.get('username')
     if not username: return jsonify({'error': 'Username required'}), 400
     
-    now = datetime.utcnow().isoformat()
+    from datetime import timezone
+    now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
     supabase.table('profiles').update({'last_seen': now}).eq('username', username).execute()
     return jsonify({'status': 'online', 'timestamp': now})
 
@@ -246,17 +247,21 @@ def get_friends():
     
     # Calculate online status (active in last 5 minutes)
     enriched_friends = []
-    now = datetime.utcnow()
+    from datetime import timezone
+    now = datetime.now(timezone.utc)
     for friend in friends_profiles.data:
         is_online = False
         if friend.get('last_seen'):
             try:
-                # Supabase returns ISO format
-                last_seen = datetime.fromisoformat(friend['last_seen'].replace('Z', '+00:00'))
-                # Replace tzinfo to make it offset-naive for comparison if needed, or use aware comparison
-                diff = (now - last_seen.replace(tzinfo=None)).total_seconds()
+                # Make timezone aware
+                last_seen_str = friend['last_seen']
+                if not last_seen_str.endswith('Z') and '+' not in last_seen_str:
+                    last_seen_str += 'Z'
+                last_seen = datetime.fromisoformat(last_seen_str.replace('Z', '+00:00'))
+                diff = (now - last_seen).total_seconds()
                 is_online = diff < 300 # 5 minutes
-            except:
+            except Exception as e:
+                print(f"Error parsing date: {e}")
                 is_online = False
         
         friend['online'] = is_online

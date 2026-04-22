@@ -144,8 +144,9 @@ void ProfileCard::setupUI() {
     };
     
     int gamesPatched = m_userData["games_patched"].toInt(0);
+    int friendsCount = m_userData["friends_count"].toInt(0);
     statsRow->addLayout(createStat(QString::number(gamesPatched), "GAMES ADDED"));
-    statsRow->addLayout(createStat("—", "FRIENDS"));
+    statsRow->addLayout(createStat(QString::number(friendsCount), "FRIENDS"));
     
     layout->addLayout(statsRow);
     
