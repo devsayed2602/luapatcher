@@ -180,8 +180,10 @@ MainWindow::MainWindow(QWidget* parent)
     , m_sidebarProfileWidget(nullptr)
 {
     // Retrieve username first so UI reflects it correctly (Avatar initial)
-    // Use a local .ini file instead of the registry
-    QString settingsPath = QCoreApplication::applicationDirPath() + "/settings.ini";
+    // Use AppData folder for settings
+    QString appDataPath = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    QDir().mkpath(appDataPath);
+    QString settingsPath = appDataPath + "/settings.ini";
     QSettings settings(settingsPath, QSettings::IniFormat);
     m_username = settings.value("username", "").toString();
     m_isGuest = settings.value("isGuest", true).toBool();
@@ -1035,7 +1037,8 @@ void MainWindow::initUI() {
         if (!dir.isEmpty()) {
             // Unify separators visually
             pathInput->setText(dir);
-            QString settingsPath = QCoreApplication::applicationDirPath() + "/settings.ini";
+            QString appDataPath = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+            QString settingsPath = appDataPath + "/settings.ini";
             QSettings settings(settingsPath, QSettings::IniFormat);
             settings.setValue("PluginDir", dir);
         }

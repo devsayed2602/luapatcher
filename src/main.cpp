@@ -145,8 +145,10 @@ int main(int argc, char *argv[]) {
     font.setStyleStrategy(QFont::PreferAntialias);
     app.setFont(font);
     
-    // Use a local .ini file instead of the registry
-    QString settingsPath = QCoreApplication::applicationDirPath() + "/settings.ini";
+    // Use AppData folder for settings (Fixes permission issues in Program Files)
+    QString appDataPath = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    QDir().mkpath(appDataPath);
+    QString settingsPath = appDataPath + "/settings.ini";
     QSettings settings(settingsPath, QSettings::IniFormat);
     QString username = settings.value("username", "").toString();
     
