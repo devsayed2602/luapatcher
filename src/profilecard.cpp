@@ -138,8 +138,9 @@ void ProfileCard::setupUI() {
         return v;
     };
     
-    statsRow->addLayout(createStat(QString::number(m_userData["level"].toInt(42)), "GLOBAL LEVEL"));
-    statsRow->addLayout(createStat("1.2k", "FOLLOWERS")); // Mock followers as in image
+    int gamesPatched = m_userData["games_patched"].toInt(0);
+    statsRow->addLayout(createStat(QString::number(gamesPatched), "GAMES ADDED"));
+    statsRow->addLayout(createStat("—", "FRIENDS")); // Will be updated when friends data loads
     
     layout->addLayout(statsRow);
     
