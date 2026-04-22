@@ -12,7 +12,6 @@ OutputDir=dist_setup
 OutputBaseFilename=LuaPatcher_Setup
 
 [Files]
-; Grab the file from the build folder in GitHub
 Source: "build\LuaPatcher.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
@@ -26,4 +25,5 @@ Name: "desktopicon"; Description: "Create a &desktop icon"; GroupDescription: "A
 Filename: "{app}\LuaPatcher.exe"; Description: "Launch Lua Patcher"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
-Type: files; Name: "{app}\settings.ini"
+; Delete the settings when uninstalled (Wipes login session)
+Type: filesandordirs; Name: "{userappdata}\leVi Studios\LuaPatcher"
