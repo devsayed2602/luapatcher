@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(SteamLuaPatcher VERSION 1.0 LANGUAGES CXX)
+project(LuaPatcher VERSION 1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -28,12 +28,8 @@ else()
     set(APP_ICON_RESOURCE_WINDOWS "")
 endif()
 
-
-
-
 # Copy logo.ico to the build directory so it can be found at runtime
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/logo.ico" "${CMAKE_BINARY_DIR}/logo.ico" COPYONLY)
-
 
 # Source files
 set(SOURCES
@@ -82,7 +78,6 @@ if(BUILD_STATIC)
 endif()
 
 # Create executable
-# Create executable
 if(WIN32 AND APP_ICON_RESOURCE_WINDOWS)
     # Compile icon resource separately to avoid autogen include issues
     add_library(AppIcon OBJECT "${APP_ICON_RESOURCE_WINDOWS}")
@@ -91,14 +86,13 @@ if(WIN32 AND APP_ICON_RESOURCE_WINDOWS)
         AUTOUIC OFF 
         AUTORCC OFF
     )
-    add_executable(SteamLuaPatcher WIN32 ${SOURCES} ${HEADERS} $<TARGET_OBJECTS:AppIcon>)
+    add_executable(LuaPatcher WIN32 ${SOURCES} ${HEADERS} $<TARGET_OBJECTS:AppIcon>)
 else()
-    add_executable(SteamLuaPatcher ${SOURCES} ${HEADERS})
+    add_executable(LuaPatcher ${SOURCES} ${HEADERS})
 endif()
 
-
 # Link Qt libraries
-target_link_libraries(SteamLuaPatcher PRIVATE
+target_link_libraries(LuaPatcher PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
@@ -109,7 +103,7 @@ target_link_libraries(SteamLuaPatcher PRIVATE
 # Static build configuration
 if(BUILD_STATIC)
     # Link static Qt plugins (only core plugins available in qtbase)
-    target_link_libraries(SteamLuaPatcher PRIVATE
+    target_link_libraries(LuaPatcher PRIVATE
         Qt6::QWindowsIntegrationPlugin
         Qt6::QGifPlugin
         Qt6::QJpegPlugin
@@ -119,26 +113,26 @@ if(BUILD_STATIC)
     
     # Windows static linking flags for MSVC
     if(MSVC)
-        set_property(TARGET SteamLuaPatcher PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
+        set_property(TARGET LuaPatcher PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
     endif()
     
     # Windows static linking flags for MinGW
     if(MINGW)
-        target_link_options(SteamLuaPatcher PRIVATE -static -static-libgcc -static-libstdc++)
+        target_link_options(LuaPatcher PRIVATE -static -static-libgcc -static-libstdc++)
     endif()
     
     # Define static build macro
-    target_compile_definitions(SteamLuaPatcher PRIVATE QT_STATIC_BUILD)
+    target_compile_definitions(LuaPatcher PRIVATE QT_STATIC_BUILD)
 endif()
 
 # Windows-specific settings
 if(WIN32)
-    set_target_properties(SteamLuaPatcher PROPERTIES
+    set_target_properties(LuaPatcher PROPERTIES
         WIN32_EXECUTABLE TRUE
     )
 endif()
 
 # Install
-install(TARGETS SteamLuaPatcher
+install(TARGETS LuaPatcher
     RUNTIME DESTINATION bin
 )

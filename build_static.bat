@@ -1,7 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 echo ================================================
-echo SteamLuaPatcher - Standalone Static Build
+echo LuaPatcher - Standalone Static Build
 echo ================================================
 echo.
 echo This script builds a single standalone .exe file
@@ -139,7 +139,7 @@ echo ================================================
 
 :build_app
 echo.
-echo Building SteamLuaPatcher with static Qt...
+echo Building LuaPatcher with static Qt...
 echo.
 
 cd /d "%~dp0"
@@ -182,10 +182,10 @@ echo.
 echo Creating distribution...
 cd ..
 mkdir %OUTPUT_DIR%
-copy %BUILD_DIR%\SteamLuaPatcher.exe %OUTPUT_DIR%\
+copy %BUILD_DIR%\LuaPatcher.exe %OUTPUT_DIR%\
 
 :: Get file size
-for %%A in (%OUTPUT_DIR%\SteamLuaPatcher.exe) do set "FILESIZE=%%~zA"
+for %%A in (%OUTPUT_DIR%\LuaPatcher.exe) do set "FILESIZE=%%~zA"
 set /a FILESIZE_MB=%FILESIZE% / 1048576
 
 echo.
@@ -194,7 +194,7 @@ echo BUILD COMPLETE!
 echo ================================================
 echo.
 echo Standalone executable created:
-echo   %OUTPUT_DIR%\SteamLuaPatcher.exe
+echo   %OUTPUT_DIR%\LuaPatcher.exe
 echo.
 echo Size: %FILESIZE_MB% MB
 echo.

@@ -1,5 +1,5 @@
 @echo off
-echo Building Steam Lua Patcher (C++ Qt6)...
+echo Building Lua Patcher (C++ Qt6)...
 echo.
 
 REM Clean previous build
@@ -51,12 +51,12 @@ echo.
 echo Creating distribution...
 cd ..
 mkdir dist
-copy build\SteamLuaPatcher.exe dist\
+copy build\LuaPatcher.exe dist\
 copy logo.ico dist\ 2>nul
 
 REM Deploy Qt dependencies
 echo Deploying Qt dependencies...
-windeployqt dist\SteamLuaPatcher.exe --release --no-translations
+windeployqt dist\LuaPatcher.exe --release --no-translations
 
 echo.
 echo Build complete! Executable is in 'dist' folder.

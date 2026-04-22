@@ -195,7 +195,7 @@ MainWindow::MainWindow(QWidget* parent)
     connect(m_xpTimer, &QTimer::timeout, this, &MainWindow::handleXpTick);
     m_xpTimer->start();
 
-    setWindowTitle("Steam Lua Patcher");
+    setWindowTitle("Lua Patcher");
     setMinimumSize(900, 600);
     resize(1280, 820);
     

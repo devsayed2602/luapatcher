@@ -4,7 +4,6 @@ on:
   push:
     branches: [ "main", "master" ]
   workflow_dispatch:
-    # No inputs needed - manual runs are just for testing
 
 permissions:
   contents: write
@@ -49,109 +48,46 @@ jobs:
       shell: pwsh
       run: |
         Write-Host "Downloading Qt ${{ env.QT_VERSION }} source..."
-        
-        # Install aqtinstall
         pip install aqtinstall
-        
-        # Download Qt source (qtbase only)
         New-Item -ItemType Directory -Force -Path "C:\Qt\Source"
         aqt install-src windows ${{ env.QT_VERSION }} --outputdir "C:\Qt\Source" --archives qtbase
         
-        # Navigate to qtbase source directory (it's inside Src/qtbase)
         $qtbasePath = "C:\Qt\Source\${{ env.QT_VERSION }}\Src\qtbase"
-        if (-not (Test-Path $qtbasePath)) {
-          Write-Host "ERROR: qtbase not found at $qtbasePath"
-          Get-ChildItem "C:\Qt\Source" -Recurse -Depth 4 | Select-Object FullName
-          exit 1
-        }
-        
         Set-Location $qtbasePath
-        Write-Host "Building from: $qtbasePath"
-        
-        # Verify configure.bat exists
-        if (-not (Test-Path "configure.bat")) {
-          Write-Host "ERROR: configure.bat not found!"
-          Get-ChildItem
-          exit 1
-        }
-        
-        # Configure Qt for static build with MSVC
-        Write-Host "Configuring Qt for static build..."
         & cmd /c "configure.bat -release -static -static-runtime -prefix C:\Qt\Static\${{ env.QT_VERSION }} -opensource -confirm-license -nomake examples -nomake tests -schannel -no-opengl -no-feature-sql"
-        
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Qt configure failed!"
-          exit 1
-        }
-        
-        Write-Host "Building Qt (this takes 1-2 hours)..."
         cmake --build . --parallel
-        
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Qt build failed!"
-          exit 1
-        }
-        
-        Write-Host "Installing Qt..."
         cmake --install .
-        
-        Write-Host "Static Qt build complete!"
 
-    - name: Build SteamLuaPatcher (Static)
+    - name: Build LuaPatcher (Static)
       shell: pwsh
       run: |
-        # Set Qt path
         $env:CMAKE_PREFIX_PATH = "C:\Qt\Static\${{ env.QT_VERSION }}"
-        $env:Qt6_DIR = "C:\Qt\Static\${{ env.QT_VERSION }}"
-        
-        # Clean and create build directory
         if (Test-Path build) { Remove-Item -Recurse -Force build }
         New-Item -ItemType Directory -Force -Path build
         Set-Location build
-        
-        Write-Host "Configuring CMake with static Qt..."
-        cmake -G "Ninja" `
-          -DCMAKE_BUILD_TYPE=Release `
-          -DBUILD_STATIC=ON `
-          -DACCESS_TOKEN="${{ secrets.SERVER_ACCESS_TOKEN }}" `
-          -DCMAKE_PREFIX_PATH="C:\Qt\Static\${{ env.QT_VERSION }}" `
-          ..
-        
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "CMake configuration failed!"
-          exit 1
-        }
-        
-        Write-Host "Building..."
+        cmake -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DBUILD_STATIC=ON -DACCESS_TOKEN="${{ secrets.SERVER_ACCESS_TOKEN }}" ..
         cmake --build . --config Release
-        
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Build failed!"
-          exit 1
-        }
+
+    - name: Compile Installer (Inno Setup)
+      shell: pwsh
+      run: |
+        & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
 
     - name: Prepare Artifact
       shell: pwsh
       run: |
-        # Create dist folder
         New-Item -ItemType Directory -Force -Path dist
-        
-        # Copy standalone exe
-        Copy-Item "build\SteamLuaPatcher.exe" "dist\lua-patcher.exe"
-        
-        # Get file info
-        $exe = Get-Item "dist\lua-patcher.exe"
-        $sizeMB = [math]::Round($exe.Length / 1MB, 2)
-        Write-Host "Standalone executable size: $sizeMB MB"
+        # Copy both the standalone and the setup for convenience
+        Copy-Item "build\LuaPatcher.exe" "dist\LuaPatcher.exe"
+        Copy-Item "dist_setup\LuaPatcher_Setup.exe" "dist\LuaPatcher_Setup.exe"
 
     - name: Upload Build Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: lua-patcher-Standalone
-        path: dist/lua-patcher.exe
+        name: LuaPatcher-Installer
+        path: dist/LuaPatcher_Setup.exe
         retention-days: 30
 
-    # Only create release if commit message contains "release:"
     - name: Check for Release
       id: check_release
       if: github.event_name == 'push'
@@ -162,64 +98,31 @@ jobs:
           $version = $matches[1]
           echo "VERSION=$version" >> $env:GITHUB_OUTPUT
           echo "IS_RELEASE=true" >> $env:GITHUB_OUTPUT
-          Write-Host "Release detected: v$version"
         } else {
           echo "IS_RELEASE=false" >> $env:GITHUB_OUTPUT
-          Write-Host "Not a release commit"
         }
 
-    - name: Get last tag for changelog
+    - name: Get last tag
       id: last_tag
       if: steps.check_release.outputs.IS_RELEASE == 'true'
       shell: pwsh
       run: |
         $lastTag = git describe --tags --abbrev=0 2>$null
-        if ($lastTag) {
-          echo "LAST_TAG=$lastTag" >> $env:GITHUB_OUTPUT
-          Write-Host "Last tag: $lastTag"
-        } else {
-          echo "LAST_TAG=" >> $env:GITHUB_OUTPUT
-          Write-Host "No previous tags found"
-        }
+        echo "LAST_TAG=$lastTag" >> $env:GITHUB_OUTPUT
 
     - name: Generate Changelog
       id: changelog
       if: steps.check_release.outputs.IS_RELEASE == 'true'
       shell: pwsh
       run: |
-        Write-Host "Generating changelog..."
-        
-        # Get commits since last tag (excluding release and chore commits)
         $lastTag = "${{ steps.last_tag.outputs.LAST_TAG }}"
-        
-        if ($lastTag) {
-          $commits = git log --pretty=format:"%s" "$lastTag..HEAD"
-        } else {
-          $commits = git log --pretty=format:"%s" HEAD
-        }
-        
-        # Filter and format commits
+        $commits = if ($lastTag) { git log --pretty=format:"%s" "$lastTag..HEAD" } else { git log --pretty=format:"%s" HEAD }
         $changelog = ""
         foreach ($commit in $commits -split "`n") {
-          # Skip release commits, chore commits, and empty lines
-          if ($commit -match "^release:" -or $commit -match "^chore:" -or [string]::IsNullOrWhiteSpace($commit)) {
-            continue
-          }
+          if ($commit -match "^release:" -or $commit -match "^chore:" -or [string]::IsNullOrWhiteSpace($commit)) { continue }
           $changelog += "- $commit`n"
         }
-        
-        # Fallback if no commits found
-        if ([string]::IsNullOrWhiteSpace($changelog)) {
-          $changelog = "- Bug fixes and improvements`n"
-        }
-        
-        Write-Host "Generated changelog:"
-        Write-Host $changelog
-        
-        # Save to file instead of using escaped output
-        $changelog | Out-File -FilePath changelog.txt -Encoding utf8 -NoNewline
-        
-        # Also set as output using multiline string syntax
+        if ([string]::IsNullOrWhiteSpace($changelog)) { $changelog = "- Bug fixes and improvements`n" }
         "LOGS<<EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
         $changelog | Out-File -FilePath $env:GITHUB_OUTPUT -Append
         "EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
@@ -234,14 +137,15 @@ jobs:
           ## What's New
           ${{ steps.changelog.outputs.LOGS }}
           
-          ## Download & Run
-          1. Download `lua-patcher.exe` below
-          2. Double-click to run - **no installation required!**
+          ## Installation
+          1. Download `LuaPatcher_Setup.exe` below
+          2. Run the installer to set up Lua Patcher on your PC
           
           ## Requirements
           - Windows 10/11 (64-bit)
         files: |
-          dist/lua-patcher.exe
+          dist/LuaPatcher_Setup.exe
+          dist/LuaPatcher.exe
         draft: false
         prerelease: false
       env:
