@@ -1069,57 +1069,114 @@ void MainWindow::initUI() {
     rightLayout->setContentsMargins(16, 20, 16, 20);
     rightLayout->setSpacing(10);
 
-    // Top Right Profile Box - Using a container that catches all clicks
+    // ══════════════════════════════════════════════════════
+    // Top Right Profile Capsule — Pill-shaped glass widget
+    // ══════════════════════════════════════════════════════
     m_topProfileWidget = new QWidget();
-    m_topProfileWidget->setFixedSize(240, 100);
-    m_topProfileWidget->setObjectName("topProfileCard");
+    m_topProfileWidget->setFixedHeight(52);
+    m_topProfileWidget->setMinimumWidth(160);
+    m_topProfileWidget->setMaximumWidth(260);
+    m_topProfileWidget->setObjectName("profileCapsule");
     m_topProfileWidget->setCursor(Qt::PointingHandCursor);
     m_topProfileWidget->setStyleSheet(
-        "QWidget#topProfileCard { "
-        "  background: rgba(30, 42, 58, 220); "
-        "  border-radius: 16px; "
-        "} "
-        "QWidget#topProfileCard:hover { "
-        "  background: rgba(40, 55, 75, 240); "
+        "QWidget#profileCapsule {"
+        "  background: rgba(15, 20, 30, 0.55);"
+        "  border: 1px solid rgba(255, 255, 255, 0.08);"
+        "  border-radius: 26px;"  // Fully rounded pill
+        "}"
+        "QWidget#profileCapsule:hover {"
+        "  background: rgba(30, 45, 70, 0.7);"
+        "  border: 1px solid rgba(143, 171, 212, 0.25);"
         "}"
     );
     m_topProfileWidget->installEventFilter(this);
-    QHBoxLayout* rpLayout = new QHBoxLayout(m_topProfileWidget);
-    rpLayout->setContentsMargins(16, 16, 16, 16);
-    rpLayout->setSpacing(14);
 
-    // -- Profile top section: avatar centered --
-    int avSz = 64;
+    QHBoxLayout* capsuleLayout = new QHBoxLayout(m_topProfileWidget);
+    capsuleLayout->setContentsMargins(6, 6, 16, 6);
+    capsuleLayout->setSpacing(10);
+
+    // ── Avatar with glowing ring + pulsing online dot ──
+    int avSz = 40;
+    int ringPad = 3; // Ring thickness
+    int totalSz = avSz + ringPad * 2;
     QWidget* avatarContainer = new QWidget();
-    avatarContainer->setFixedSize(avSz, avSz);
+    avatarContainer->setFixedSize(totalSz, totalSz);
     avatarContainer->setStyleSheet("background: transparent;");
-    QPixmap avatarPix(avSz, avSz);
-    avatarPix.fill(Qt::transparent);
-    QPainter avatarPainter(&avatarPix);
-    avatarPainter.setRenderHint(QPainter::Antialiasing);
-    avatarPainter.setBrush(QColor("#8FABD4"));
-    avatarPainter.setPen(Qt::NoPen);
-    avatarPainter.drawEllipse(0, 0, avSz, avSz);
-    avatarPainter.setPen(QColor(255, 255, 255));
-    avatarPainter.setFont(QFont("Segoe UI", 22, QFont::Bold));
-    avatarPainter.drawText(avatarPix.rect(), Qt::AlignCenter, m_username.isEmpty() ? "U" : m_username.left(1).toUpper());
-    avatarPainter.end();
-    QLabel* avatarLabel = new QLabel(avatarContainer);
-    avatarLabel->setPixmap(avatarPix);
-    avatarContainer->setAttribute(Qt::WA_TransparentForMouseEvents);
-    rpLayout->addWidget(avatarContainer);
 
+    QPixmap avatarPix(totalSz * 2, totalSz * 2); // 2x for retina sharpness
+    avatarPix.fill(Qt::transparent);
+    QPainter ap(&avatarPix);
+    ap.setRenderHint(QPainter::Antialiasing);
+    int s2 = totalSz * 2;
+    int av2 = avSz * 2;
+    int rp2 = ringPad * 2;
+
+    // Outer glow ring
+    QRadialGradient ringGlow(s2 / 2.0, s2 / 2.0, s2 / 2.0);
+    ringGlow.setColorAt(0.75, QColor(143, 171, 212, 100));
+    ringGlow.setColorAt(0.88, QColor(143, 171, 212, 50));
+    ringGlow.setColorAt(1.0, QColor(143, 171, 212, 0));
+    ap.setPen(Qt::NoPen);
+    ap.setBrush(ringGlow);
+    ap.drawEllipse(0, 0, s2, s2);
+
+    // Ring border
+    ap.setPen(QPen(QColor(143, 171, 212, 120), 2));
+    ap.setBrush(Qt::NoBrush);
+    ap.drawEllipse(rp2, rp2, av2, av2);
+
+    // Inner filled circle (avatar background)
+    ap.setPen(Qt::NoPen);
+    ap.setBrush(QColor("#4A6FA5"));
+    ap.drawEllipse(rp2 + 2, rp2 + 2, av2 - 4, av2 - 4);
+
+    // Letter initial
+    ap.setPen(QColor(255, 255, 255, 240));
+    ap.setFont(QFont("Segoe UI", 18, QFont::Bold));
+    QRect letterRect(rp2, rp2, av2, av2);
+    ap.drawText(letterRect, Qt::AlignCenter, m_username.isEmpty() ? "U" : m_username.left(1).toUpper());
+
+    // Green pulsing online dot
+    int dotSz = 14;
+    int dotX = s2 - dotSz - 4;
+    int dotY = s2 - dotSz - 2;
+    // Dark outline ring
+    ap.setBrush(QColor(15, 20, 30));
+    ap.setPen(Qt::NoPen);
+    ap.drawEllipse(dotX - 3, dotY - 3, dotSz + 6, dotSz + 6);
+    // Green dot
+    QRadialGradient dotGlow(dotX + dotSz / 2.0, dotY + dotSz / 2.0, dotSz / 2.0);
+    dotGlow.setColorAt(0.0, QColor("#5AFF7E"));
+    dotGlow.setColorAt(0.6, QColor("#2ECC71"));
+    dotGlow.setColorAt(1.0, QColor("#27AE60"));
+    ap.setBrush(dotGlow);
+    ap.drawEllipse(dotX, dotY, dotSz, dotSz);
+
+    ap.end();
+
+    QLabel* avatarLabel = new QLabel(avatarContainer);
+    avatarLabel->setPixmap(avatarPix.scaled(totalSz, totalSz, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    avatarLabel->setGeometry(0, 0, totalSz, totalSz);
+    avatarContainer->setAttribute(Qt::WA_TransparentForMouseEvents);
+    capsuleLayout->addWidget(avatarContainer);
+
+    // ── Username ──
     m_topUsernameLabel = new QLabel(m_username.isEmpty() ? "User" : m_username);
-    m_topUsernameLabel->setStyleSheet("font-size: 15px; font-weight: bold; color: white; background: transparent;");
-    rpLayout->addWidget(m_topUsernameLabel);
-    rpLayout->addStretch();
+    m_topUsernameLabel->setStyleSheet(
+        "font-size: 14px; font-weight: 700; color: #EAEEF3;"
+        "background: transparent; font-family: 'Segoe UI';"
+        "letter-spacing: 0.3px;"
+    );
+    capsuleLayout->addWidget(m_topUsernameLabel);
+    capsuleLayout->addStretch();
 
     rightLayout->addWidget(m_topProfileWidget);
-    
-    // Ensure ALL children are mouse-transparent so the main widget catches the click
+
+    // Ensure ALL children are mouse-transparent so the capsule catches the click
     for (auto* child : m_topProfileWidget->findChildren<QWidget*>()) {
         child->setAttribute(Qt::WA_TransparentForMouseEvents);
     }
+
 
     // ── FRIENDS SECTION ──
     QLabel* friendsHeader = new QLabel("FRIENDS (0 ONLINE)");
