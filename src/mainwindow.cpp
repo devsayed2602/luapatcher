@@ -176,8 +176,6 @@ MainWindow::MainWindow(QWidget* parent)
     , m_hasCachedData(false)
     , m_sidebarAvatarLabel(nullptr)
     , m_sidebarUsernameLabel(nullptr)
-    , m_sidebarLevelLabel(nullptr)
-    , m_sidebarLevelProgress(nullptr)
     , m_sidebarProfileWidget(nullptr)
 {
     // Retrieve username first so UI reflects it correctly (Avatar initial)
@@ -192,11 +190,6 @@ MainWindow::MainWindow(QWidget* parent)
     if (!dataStr.isEmpty()) {
         m_userData = QJsonDocument::fromJson(dataStr.toUtf8()).object();
     }
-
-    m_xpTimer = new QTimer(this);
-    m_xpTimer->setInterval(300000); // 5 minutes
-    connect(m_xpTimer, &QTimer::timeout, this, &MainWindow::handleXpTick);
-    m_xpTimer->start();
 
     setWindowTitle("Lua Patcher");
     setMinimumSize(900, 600);
@@ -668,7 +661,6 @@ void MainWindow::dropEvent(QDropEvent* event) {
     }
 
     if (count > 0) {
-        updateXP(count * 50); // 50 XP per installed patch
         m_statusLabel->setText(QString("Installed %1 patch%2").arg(count).arg(count > 1 ? "es" : ""));
         if (m_currentMode == AppMode::Library) {
             displayLibrary();

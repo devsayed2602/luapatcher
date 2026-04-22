@@ -75,7 +75,6 @@ protected:
     bool eventFilter(QObject *obj, QEvent *event) override;
     void dragEnterEvent(QDragEnterEvent* event) override;
     void dropEvent(QDropEvent* event) override;
-    void dropEvent(QDragEnterEvent* event) override;
 
 private slots:
     void onSyncDone(QList<GameInfo> games);
