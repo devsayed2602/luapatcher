@@ -2,19 +2,19 @@
 #define MATERIALICONS_H
 
 #include <QPainter>
-#include <QPainterPath>
 #include <QRect>
 #include <QColor>
+#include <QtSvg/QSvgRenderer>
+#include <QByteArray>
+#include <QMap>
 
-// Material Design icon painter using QPainterPath.
-// Each method draws a 24x24-unit icon scaled to fit the given rect.
 class MaterialIcons {
 public:
     enum Icon {
         Home,
         Download,
-        Build,        // Wrench
-        Library,      // Books
+        Build,
+        Library,
         Refresh,
         Delete,
         Add,
@@ -22,375 +22,133 @@ public:
         Search,
         Gamepad,
         CheckCircle,
-        Flash,        // Lightning bolt
+        Flash,
         Settings,
         Discord,
         Group,
-        PersonAdd
+        PersonAdd,
+        Logout,
+        Steam
     };
 
     static void draw(QPainter& p, const QRectF& rect, const QColor& color, Icon icon) {
-        p.save();
-        p.setRenderHint(QPainter::Antialiasing);
-
-        // Scale from 24x24 canonical size to target rect
-        p.translate(rect.topLeft());
-        qreal sx = rect.width() / 24.0;
-        qreal sy = rect.height() / 24.0;
-        p.scale(sx, sy);
-
-        p.setPen(Qt::NoPen);
-        p.setBrush(color);
-
-        switch (icon) {
-        case Home:       drawHome(p); break;
-        case Download:   drawDownload(p); break;
-        case Build:      drawBuild(p); break;
-        case Library:    drawLibrary(p); break;
-        case Refresh:    drawRefresh(p); break;
-        case Delete:     drawDelete(p); break;
-        case Add:        drawAdd(p); break;
-        case RestartAlt: drawRestartAlt(p); break;
-        case Search:     drawSearch(p); break;
-        case Gamepad:    drawGamepad(p); break;
-        case CheckCircle:drawCheckCircle(p); break;
-        case Flash:      drawFlash(p); break;
-        case Settings:   drawSettings(p); break;
-        case Discord:    drawDiscord(p); break;
-        case Group:      drawGroup(p); break;
-        case PersonAdd:  drawPersonAdd(p); break;
-        }
-
-        p.restore();
+        QString svgString = getSvgString(icon);
+        if (svgString.isEmpty()) return;
+        
+        // Dynamically replace the keyword "currentColor" with the passed color if needed
+        // but for premium UI, we use the embedded gradients!
+        
+        QSvgRenderer renderer(svgString.toUtf8());
+        renderer.render(&p, rect);
     }
 
 private:
-    static void drawHome(QPainter& p) {
-        QPainterPath path;
-        path.moveTo(12, 3);
-        path.lineTo(3, 10);
-        path.lineTo(3, 21);
-        path.lineTo(9, 21);
-        path.lineTo(9, 14);
-        path.lineTo(15, 14);
-        path.lineTo(15, 21);
-        path.lineTo(21, 21);
-        path.lineTo(21, 10);
-        path.closeSubpath();
-        
-        QPen pen(p.brush().color(), 2.0);
-        pen.setJoinStyle(Qt::RoundJoin);
-        pen.setCapStyle(Qt::RoundCap);
-        p.setPen(pen);
-        p.setBrush(Qt::NoBrush);
-        p.drawPath(path);
-    }
-    // Download arrow with tray
-    static void drawDownload(QPainter& p) {
-        QPainterPath path;
-        // Arrow down
-        path.moveTo(12, 2);
-        path.lineTo(12, 15);
-        path.moveTo(12, 15);
-
-        // Arrow body
-        QPainterPath arrow;
-        arrow.addRect(11, 2, 2, 13);
-
-        // Arrow head
-        QPainterPath head;
-        head.moveTo(7, 12);
-        head.lineTo(12, 17);
-        head.lineTo(17, 12);
-        head.lineTo(15, 10);
-        head.lineTo(13, 12);
-        head.lineTo(13, 2);
-        head.lineTo(11, 2);
-        head.lineTo(11, 12);
-        head.lineTo(9, 10);
-        head.closeSubpath();
-
-        // Tray
-        QPainterPath tray;
-        tray.moveTo(5, 18);
-        tray.lineTo(5, 20);
-        tray.lineTo(19, 20);
-        tray.lineTo(19, 18);
-        tray.lineTo(17, 18);
-        tray.lineTo(17, 18);
-        tray.lineTo(5, 18);
-        tray.closeSubpath();
-
-        p.drawPath(head);
-        p.drawPath(tray);
-    }
-
-    // Wrench
-    static void drawBuild(QPainter& p) {
-        QPainterPath path;
-        path.moveTo(22.7, 19);
-        path.lineTo(13.6, 9.9);
-        path.cubicTo(14.5, 7.6, 14, 4.9, 12.1, 3);
-        path.cubicTo(10.1, 1, 7.1, 0.6, 4.7, 1.7);
-        path.lineTo(9.0, 6.0);
-        path.lineTo(6.0, 9.0);
-        path.lineTo(1.7, 4.7);
-        path.cubicTo(0.6, 7.1, 1.0, 10.1, 3.0, 12.1);
-        path.cubicTo(4.9, 14, 7.6, 14.5, 9.9, 13.6);
-        path.lineTo(19.0, 22.7);
-        path.cubicTo(19.4, 23.1, 20.1, 23.1, 20.5, 22.7);
-        path.lineTo(22.7, 20.5);
-        path.cubicTo(23.1, 20.1, 23.1, 19.4, 22.7, 19);
-        path.closeSubpath();
-        p.drawPath(path);
-    }
-
-    // Library / books icon
-    static void drawLibrary(QPainter& p) {
-        // Three book spines + shelf
-        p.drawRect(QRectF(4, 3, 3, 14));
-        p.drawRect(QRectF(8.5, 3, 3, 14));
-
-        QPainterPath angled;
-        angled.moveTo(13.5, 17);
-        angled.lineTo(16, 3);
-        angled.lineTo(19, 3.7);
-        angled.lineTo(16.5, 17.7);
-        angled.closeSubpath();
-        p.drawPath(angled);
-
-        // Shelf
-        p.drawRect(QRectF(2, 19, 20, 2));
-    }
-
-    // Refresh circle arrow
-    static void drawRefresh(QPainter& p) {
-        p.setBrush(Qt::NoBrush);
-        QPen pen(p.brush().color(), 2.2);
-        pen.setCapStyle(Qt::RoundCap);
-        p.setPen(pen);
-
-        // Arc
-        p.drawArc(QRectF(4, 4, 16, 16), 90 * 16, -270 * 16);
-
-        // Arrow head
-        p.setPen(Qt::NoPen);
-        p.setBrush(pen.color());
-        QPainterPath arrow;
-        arrow.moveTo(20, 8);
-        arrow.lineTo(20, 3);
-        arrow.lineTo(15, 8);
-        arrow.closeSubpath();
-        p.drawPath(arrow);
-    }
-
-    // Delete / trash
-    static void drawDelete(QPainter& p) {
-        // Lid
-        p.drawRect(QRectF(5, 4, 14, 2));
-        // Handle
-        p.drawRect(QRectF(9, 2, 6, 2));
-        // Body
-        QPainterPath body;
-        body.moveTo(6, 7);
-        body.lineTo(7, 21);
-        body.lineTo(17, 21);
-        body.lineTo(18, 7);
-        body.closeSubpath();
-        p.drawPath(body);
-    }
-
-    // Plus / Add
-    static void drawAdd(QPainter& p) {
-        p.drawRect(QRectF(11, 5, 2, 14));
-        p.drawRect(QRectF(5, 11, 14, 2));
-    }
-
-    // Restart
-    static void drawRestartAlt(QPainter& p) {
-        // Similar to refresh but with double arrows
-        p.setBrush(Qt::NoBrush);
-        QPen pen(p.brush().color(), 2.2);
-        pen.setCapStyle(Qt::RoundCap);
-        p.setPen(pen);
-
-        p.drawArc(QRectF(4, 4, 16, 16), 90 * 16, -270 * 16);
-
-        p.setPen(Qt::NoPen);
-        p.setBrush(pen.color());
-
-        // Arrow
-        QPainterPath arrow;
-        arrow.moveTo(12, 2);
-        arrow.lineTo(16, 6);
-        arrow.lineTo(12, 10);
-        arrow.closeSubpath();
-        p.drawPath(arrow);
-    }
-
-    // Search magnifier
-    static void drawSearch(QPainter& p) {
-        p.setBrush(Qt::NoBrush);
-        QPen pen(p.brush().color(), 2.5);
-        pen.setCapStyle(Qt::RoundCap);
-        p.setPen(pen);
-
-        // Circle
-        p.drawEllipse(QRectF(3, 3, 13, 13));
-
-        // Handle
-        p.drawLine(QPointF(14.5, 14.5), QPointF(20.5, 20.5));
-    }
-
-    // Gamepad
-    static void drawGamepad(QPainter& p) {
-        QPainterPath path;
-        path.moveTo(6, 9);
-        path.cubicTo(1, 9, 1, 15, 2, 18);
-        path.cubicTo(2.5, 19.5, 4, 19.5, 5, 18);
-        path.lineTo(7, 15);
-        path.lineTo(17, 15);
-        path.lineTo(19, 18);
-        path.cubicTo(20, 19.5, 21.5, 19.5, 22, 18);
-        path.cubicTo(23, 15, 23, 9, 18, 9);
-        path.closeSubpath();
-
-        p.drawPath(path);
-
-        // D-pad
-        QColor btnColor(0, 0, 0, 100);
-        p.setBrush(btnColor);
-        p.drawRect(QRectF(8, 10.5, 4, 1.2));
-        p.drawRect(QRectF(9.4, 9.2, 1.2, 4));
-
-        // Buttons
-        p.drawEllipse(QPointF(16, 11), 0.8, 0.8);
-        p.drawEllipse(QPointF(18, 11), 0.8, 0.8);
-    }
-
-    // Check circle
-    static void drawCheckCircle(QPainter& p) {
-        // Circle
-        p.drawEllipse(QRectF(2, 2, 20, 20));
-
-        // Checkmark in white
-        QPen pen(QColor(0, 0, 0), 2.5);
-        pen.setCapStyle(Qt::RoundCap);
-        pen.setJoinStyle(Qt::RoundJoin);
-        p.setPen(pen);
-        p.setBrush(Qt::NoBrush);
-
-        QPainterPath check;
-        check.moveTo(7, 12);
-        check.lineTo(10.5, 15.5);
-        check.lineTo(17, 8.5);
-        p.drawPath(check);
-    }
-
-    // Flash / Lightning bolt
-    static void drawFlash(QPainter& p) {
-        QPainterPath path;
-        path.moveTo(13, 2);
-        path.lineTo(6, 13);
-        path.lineTo(11, 13);
-        path.lineTo(11, 22);
-        path.lineTo(18, 11);
-        path.lineTo(13, 11);
-        path.closeSubpath();
-        p.drawPath(path);
-    }
-
-    // Settings / Gear
-    static void drawSettings(QPainter& p) {
-        QColor color = p.brush().color();
-        p.setBrush(Qt::NoBrush);
-        
-        // Inner circle
-        p.setPen(QPen(color, 2.5, Qt::SolidLine, Qt::RoundCap));
-        p.drawEllipse(QRectF(9, 9, 6, 6));
-        
-        // Emphasized gear spokes
-        p.setPen(QPen(color, 4.0, Qt::SolidLine, Qt::FlatCap));
-        p.drawLine(12, 3, 12, 6);
-        p.drawLine(12, 18, 12, 21);
-        p.drawLine(3, 12, 6, 12);
-        p.drawLine(18, 12, 21, 12);
-        
-        p.setPen(QPen(color, 3.5, Qt::SolidLine, Qt::FlatCap));
-        p.drawLine(6, 6, 8, 8);
-        p.drawLine(18, 18, 16, 16);
-        p.drawLine(18, 6, 16, 8);
-        p.drawLine(6, 18, 8, 16);
-    }
-
-    // Discord logo (simplified)
-    static void drawDiscord(QPainter& p) {
-        QPainterPath path;
-        path.moveTo(18, 6);
-        path.cubicTo(16.5, 5.5, 15, 5, 13.5, 5);
-        path.lineTo(13, 5.5);
-        path.cubicTo(11.5, 5.5, 10.5, 5.5, 9, 5.5);
-        path.lineTo(8.5, 5);
-        path.cubicTo(7, 5, 5.5, 5.5, 4, 6);
-        path.cubicTo(2, 11, 2, 16, 3, 19);
-        path.cubicTo(5, 20.5, 7, 21, 9, 21);
-        path.lineTo(10, 19.5);
-        path.cubicTo(8.5, 19, 7.5, 18, 6.5, 17);
-        path.lineTo(7.5, 16);
-        path.cubicTo(9, 17, 10.5, 17.5, 12, 17.5);
-        path.cubicTo(13.5, 17.5, 15, 17, 16.5, 16);
-        path.lineTo(17.5, 17);
-        path.cubicTo(16.5, 18, 15.5, 19, 14, 19.5);
-        path.lineTo(15, 21);
-        path.cubicTo(17, 21, 19, 20.5, 21, 19);
-        path.cubicTo(22, 16, 22, 11, 18, 6);
-        path.closeSubpath();
-        
-        p.setBrush(p.brush().color());
-        p.setPen(Qt::NoPen);
-        p.drawPath(path);
-        
-        p.setBrush(QColor(0, 0, 0, 150));
-        p.drawEllipse(8, 11, 2, 2.5);
-        p.drawEllipse(14, 11, 2, 2.5);
-    }
-
-    static void drawGroup(QPainter& p) {
-        // Person 1 (Center)
-        p.drawEllipse(QRectF(9, 4, 6, 6));
-        QPainterPath body1;
-        body1.moveTo(12, 12);
-        body1.cubicTo(8, 12, 4, 14, 4, 18);
-        body1.lineTo(4, 20);
-        body1.lineTo(20, 20);
-        body1.lineTo(20, 18);
-        body1.cubicTo(20, 14, 16, 12, 12, 12);
-        body1.closeSubpath();
-        p.drawPath(body1);
-
-        // Person 2 (Left) - partial
-        p.drawEllipse(QRectF(2, 6, 4, 4));
-        
-        // Person 3 (Right) - partial
-        p.drawEllipse(QRectF(18, 6, 4, 4));
-    }
-
-    static void drawPersonAdd(QPainter& p) {
-        // Person
-        p.drawEllipse(QRectF(9, 4, 6, 6));
-        QPainterPath body;
-        body.moveTo(12, 12);
-        body.cubicTo(8, 12, 4, 14, 4, 18);
-        body.lineTo(4, 20);
-        body.lineTo(16, 20);
-        body.lineTo(16, 18);
-        body.cubicTo(16, 14, 12, 12, 12, 12);
-        body.closeSubpath();
-        p.drawPath(body);
-
-        // Plus sign
-        p.drawRect(QRectF(18, 10, 2, 6));
-        p.drawRect(QRectF(16, 12, 6, 2));
+    static QString getSvgString(Icon icon) {
+        switch (icon) {
+            case Home: return R"SVG(
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="gradHome" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#A8DB8F" />
+                            <stop offset="100%" stop-color="#4CB8C4" />
+                        </linearGradient>
+                    </defs>
+                    <path d="M3 10l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V10z" fill="url(#gradHome)" opacity="0.9"/>
+                    <path d="M9 22V12h6v10" fill="#1A1C23" />
+                </svg>
+            )SVG";
+            case Library: return R"SVG(
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="gradLib" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#8FABD4" />
+                            <stop offset="100%" stop-color="#4A658A" />
+                        </linearGradient>
+                        <linearGradient id="gradLibHighlight" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#EFECE3" />
+                            <stop offset="100%" stop-color="#A8DB8F" />
+                        </linearGradient>
+                    </defs>
+                    <rect x="3" y="4" width="4" height="16" rx="1" fill="url(#gradLib)"/>
+                    <rect x="9" y="4" width="4" height="16" rx="1" fill="url(#gradLib)"/>
+                    <path d="M16.5 4.5l3.5 15-3.8.9-3.5-15 3.8-.9z" fill="url(#gradLibHighlight)"/>
+                </svg>
+            )SVG";
+            case Settings: return R"SVG(
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="gradSet" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#95A5A6" />
+                            <stop offset="100%" stop-color="#34495E" />
+                        </linearGradient>
+                    </defs>
+                    <path fill-rule="evenodd" clip-rule="evenodd" d="M12 15.5C13.933 15.5 15.5 13.933 15.5 12C15.5 10.067 13.933 8.5 12 8.5C10.067 8.5 8.5 10.067 8.5 12C8.5 13.933 10.067 15.5 12 15.5ZM12 13.5C12.8284 13.5 13.5 12.8284 13.5 12C13.5 11.1716 12.8284 10.5 12 10.5C11.1716 10.5 10.5 11.1716 10.5 12C10.5 12.8284 11.1716 13.5 12 13.5Z" fill="#A8DB8F"/>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" fill="url(#gradSet)" opacity="0.8"/>
+                </svg>
+            )SVG";
+            case Steam: return R"SVG(
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="gradSteamAccent" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#66C0F4" />
+                            <stop offset="100%" stop-color="#19548E" />
+                        </linearGradient>
+                    </defs>
+                    <path d="M12 0C5.373 0 0 5.373 0 12c0 5.485 3.666 10.126 8.653 11.534l3.19-4.577c-.125-.133-.2-.314-.2-.516 0-.348.232-.647.545-.765l.775-2.235c-.035-.11-.055-.226-.055-.347 0-1.066.864-1.93 1.93-1.93 1.066 0 1.93.864 1.93 1.93 0 1.066-.864 1.93-1.93 1.93-.844 0-1.554-.54-1.81-1.286l-2.298.796c.114.305.176.634.176.976 0 1.58-1.28 2.86-2.86 2.86-.33 0-.648-.056-.94-.158l-3.21 4.606C7.382 23.633 9.615 24 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm4.84 8.78c-1.396 0-2.527 1.13-2.527 2.526 0 1.396 1.13 2.527 2.527 2.527 1.396 0 2.527-1.13 2.527-2.527 0-1.396-1.13-2.527-2.527-2.527zm0 1.1c.787 0 1.427.64 1.427 1.426 0 .788-.64 1.428-1.427 1.428-.787 0-1.426-.64-1.426-1.428 0-.787.64-1.426 1.426-1.426zm-7.666 7.424c-1.136 0-2.056-.92-2.056-2.056 0-1.136.92-2.057 2.056-2.057 1.137 0 2.057.92 2.057 2.057 0 1.136-.92 2.056-2.057 2.056zm0-.5c.857 0 1.556-.7 1.556-1.557 0-.856-.7-1.556-1.556-1.556-.856 0-1.556.7-1.556 1.556 0 .857.7 1.557 1.556 1.557z" fill="url(#gradSteamAccent)"/>
+                </svg>
+            )SVG";
+            case PersonAdd: return R"SVG(
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="gradUser" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#8FABD4" />
+                            <stop offset="100%" stop-color="#4A658A" />
+                        </linearGradient>
+                    </defs>
+                    <circle cx="10" cy="7" r="4" fill="url(#gradUser)"/>
+                    <path d="M18 19v-2c0-2.2-1.8-4-4-4H6c-2.2 0-4 1.8-4 4v2h16z" fill="url(#gradUser)"/>
+                    <circle cx="18" cy="18" r="5" fill="#A8DB8F"/>
+                    <path d="M18 16v4M16 18h4" stroke="#1A1C23" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            )SVG";
+            case Logout: return R"SVG(
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M16 17l5-5-5-5M21 12H9" stroke="#E74C3C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke="#E74C3C" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+                </svg>
+            )SVG";
+            case Discord: return R"SVG(
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M19.3 5.4c-1.3-.6-2.8-1-4.3-1.3-.2.3-.4.7-.5 1-1.6-.2-3.1-.2-4.6 0-.1-.3-.3-.7-.5-1-1.5.3-3 .7-4.3 1.3C2 10.3 1.2 15 1.5 19.6c1.7 1.3 3.4 2.1 5 2.6.4-.5.8-1.1 1.1-1.7-1.7-.5-3.3-1.4-4.6-2.5 2 1.4 4.3 2.3 6.7 2.7 1.3.2 2.6.2 3.9 0 2.4-.4 4.7-1.3 6.7-2.7-1.3 1.1-2.9 2-4.6 2.5.3.6.7 1.2 1.1 1.7 1.6-.5 3.3-1.3 5-2.6.3-4.6-.5-9.3-3.8-14.2z" fill="#5865F2"/>
+                    <circle cx="8.5" cy="12" r="1.5" fill="#FFFFFF"/>
+                    <circle cx="15.5" cy="12" r="1.5" fill="#FFFFFF"/>
+                </svg>
+            )SVG";
+            case Download: return R"SVG(
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" stroke="#A8DB8F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M7 10l5 5 5-5M12 15V3" stroke="#A8DB8F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            )SVG";
+            case Search: return R"SVG(
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="11" cy="11" r="7" stroke="#8FABD4" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M20 20l-4-4" stroke="#8FABD4" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            )SVG";
+            case Refresh: return R"SVG(
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M21 12a9 9 0 11-1.35-4.73l-2.45 2.45" stroke="#8FABD4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M21 4v5.5h-5.5" stroke="#8FABD4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            )SVG";
+            // Fallback for others - simple geometric shapes or generic code
+            default: return R"SVG(
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="4" y="4" width="16" height="16" rx="4" fill="#EFECE3" opacity="0.3"/>
+                </svg>
+            )SVG";
+        }
     }
 };
 

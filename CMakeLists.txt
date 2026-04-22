@@ -19,7 +19,7 @@ endif()
 add_definitions(-DSERVER_ACCESS_TOKEN="${ACCESS_TOKEN}")
 
 # Find Qt6 - Core components only
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network Svg)
 
 # Application icon resource (optional)
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/app.rc")
@@ -38,6 +38,7 @@ set(SOURCES
     src/glassbutton.cpp
     src/gamecard.cpp
     src/gamedetailspage.cpp
+    src/addfrienddialog.cpp
     src/loadingspinner.cpp
     src/workers/indexdownloadworker.cpp
     src/workers/luadownloadworker.cpp
@@ -97,6 +98,7 @@ target_link_libraries(LuaPatcher PRIVATE
     Qt6::Gui
     Qt6::Widgets
     Qt6::Network
+    Qt6::Svg
     dwmapi
 )
 

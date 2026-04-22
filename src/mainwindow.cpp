@@ -12,9 +12,14 @@
 #include "workers/generatorworker.h"
 #include "workers/restartworker.h"
 #include "utils/colors.h"
+#include "utils/gameinfo.h"
+#include "terminaldialog.h"
+#include "addfrienddialog.h"
 #include "utils/paths.h"
 #include "config.h"
 #include <QBuffer>
+#include <QProcess>
+#include <QApplication>
 #include <QImageWriter>
 
 #ifdef Q_OS_WIN
@@ -691,8 +696,9 @@ void MainWindow::initUI() {
     rootLayout->setSpacing(0);
     
     // ──── Material Navigation Rail (Sidebar) ────
-    m_sidebarWidget = new QWidget();
-    m_sidebarWidget->setFixedWidth(180);
+    m_sidebarWidget = new QWidget(this);
+    m_sidebarWidget->setObjectName("sidebar");
+    m_sidebarWidget->setFixedWidth(220);
     m_sidebarWidget->setAttribute(Qt::WA_StyledBackground);
     m_sidebarWidget->setAutoFillBackground(false);
     m_sidebarWidget->setStyleSheet(QString(
@@ -766,15 +772,10 @@ void MainWindow::initUI() {
     connect(m_tabLua, &QPushButton::clicked, this, [this](){ switchMode(AppMode::LuaPatcher); });
     sidebarInnerLayout->addWidget(m_tabLua);
 
-    m_tabLibrary = new GlassButton(MaterialIcons::Gamepad, " Library", "", Colors::PRIMARY);
+    m_tabLibrary = new GlassButton(MaterialIcons::Library, " Library", "", Colors::PRIMARY);
     m_tabLibrary->setFixedHeight(45);
     connect(m_tabLibrary, &QPushButton::clicked, this, [this](){ switchMode(AppMode::Library); });
     sidebarInnerLayout->addWidget(m_tabLibrary);
-
-    m_tabSocial = new GlassButton(MaterialIcons::Group, " Social", "", Colors::PRIMARY);
-    m_tabSocial->setFixedHeight(45);
-    connect(m_tabSocial, &QPushButton::clicked, this, [this](){ switchMode(AppMode::Social); });
-    sidebarInnerLayout->addWidget(m_tabSocial);
 
     // ── Animated sidebar indicator bar ──
     m_sidebarIndicator = new QWidget(m_sidebarWidget);
@@ -787,6 +788,12 @@ void MainWindow::initUI() {
     m_indicatorAnimation->setEasingCurve(QEasingCurve::OutCubic);
 
     sidebarInnerLayout->addStretch();
+
+    m_btnRestart = new GlassButton(MaterialIcons::Steam, " Restart Steam", "", Colors::OUTLINE);
+    m_btnRestart->setFixedHeight(45);
+    connect(m_btnRestart, &QPushButton::clicked, this, &MainWindow::doRestart);
+    sidebarInnerLayout->addWidget(m_btnRestart);
+    sidebarInnerLayout->addSpacing(8);
 
     m_tabSettings = new GlassButton(MaterialIcons::Settings, " Settings", "", Colors::OUTLINE);
     m_tabSettings->setFixedHeight(45);
@@ -1036,6 +1043,24 @@ void MainWindow::initUI() {
     });
     pathLayout->addWidget(browseBtn);
     settingsLayout->addLayout(pathLayout);
+    settingsLayout->addSpacing(30);
+    
+    // Logout Button
+    GlassButton* logoutBtn = new GlassButton(MaterialIcons::Logout, " Log Out", "", "#E74C3C");
+    logoutBtn->setFixedHeight(44);
+    connect(logoutBtn, &QPushButton::clicked, this, [this]() {
+        QString appDataPath = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+        QSettings settings(appDataPath + "/settings.ini", QSettings::IniFormat);
+        settings.remove("username");
+        settings.remove("isGuest");
+        settings.remove("userData");
+        settings.sync();
+        
+        QProcess::startDetached(QApplication::applicationFilePath(), QStringList());
+        QApplication::quit();
+    });
+    settingsLayout->addWidget(logoutBtn);
+    
     settingsLayout->addStretch();
     m_stack->addWidget(settingsWidget); // index 2
     
@@ -1044,10 +1069,6 @@ void MainWindow::initUI() {
     connect(m_gameDetailsPage, &GameDetailsPage::backClicked, this, &MainWindow::onGameDetailsBack);
     connect(m_gameDetailsPage, &GameDetailsPage::addToLibraryClicked, this, &MainWindow::onInstallFromDetails);
     m_stack->addWidget(m_gameDetailsPage); // index 3
-
-    // index 4: Social Page
-    m_socialPage = new SocialPage(m_username, m_isGuest, m_networkManager, this);
-    m_stack->addWidget(m_socialPage); // index 4
     
     mainLayout->addWidget(m_stack);
     
@@ -1222,7 +1243,9 @@ void MainWindow::initUI() {
     btnLayout->addStretch();
     
     connect(addFriendBtn, &QPushButton::clicked, this, [this]() {
-        switchMode(AppMode::Social); // Go to social page to add friends
+        AddFriendDialog* dialog = new AddFriendDialog(m_username, m_networkManager, this);
+        dialog->move(geometry().center() - dialog->rect().center());
+        dialog->exec();
     });
     rightLayout->addWidget(addFriendBtn);
 
@@ -2220,22 +2243,18 @@ void MainWindow::switchMode(AppMode mode) {
         }
     } else if (m_currentMode == AppMode::Library) {
         displayLibrary();
-    } else if (m_currentMode == AppMode::Social) {
-        m_socialPage->refresh();
     }
 }
 
 void MainWindow::updateModeUI() {
     m_tabLua->setAccentColor(m_currentMode == AppMode::LuaPatcher ? Colors::PRIMARY : "transparent");
     m_tabLibrary->setAccentColor(m_currentMode == AppMode::Library ? Colors::ACCENT_GREEN : "transparent");
-    m_tabSocial->setAccentColor(m_currentMode == AppMode::Social ? Colors::PRIMARY : "transparent");
     m_tabSettings->setAccentColor(m_currentMode == AppMode::Settings ? Colors::PRIMARY : "transparent");
 
     // Animate sidebar indicator to the active tab
     GlassButton* activeTab = nullptr;
     if (m_currentMode == AppMode::LuaPatcher) activeTab = m_tabLua;
     else if (m_currentMode == AppMode::Library) activeTab = m_tabLibrary;
-    else if (m_currentMode == AppMode::Social) activeTab = m_tabSocial;
     else if (m_currentMode == AppMode::Settings) activeTab = m_tabSettings;
     
     if (activeTab && m_sidebarIndicator) {
@@ -2263,8 +2282,6 @@ void MainWindow::updateModeUI() {
     
     if (m_currentMode == AppMode::Settings) {
         m_stack->setCurrentIndex(2);
-    } else if (m_currentMode == AppMode::Social) {
-        m_stack->setCurrentIndex(4);
     } else {
         m_stack->setCurrentIndex(1);
     }
@@ -2504,8 +2521,6 @@ void MainWindow::setInitialUser(const QString& username, const QJsonObject& data
     m_isGuest = guest;
     
     if (m_topUsernameLabel) m_topUsernameLabel->setText(m_username);
-    
-    if (m_socialPage) m_socialPage->setUserData(m_username, m_isGuest); 
     
     if (!m_isGuest && !m_username.isEmpty()) {
         refreshFriendsList();
