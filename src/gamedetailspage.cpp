@@ -775,9 +775,23 @@ void GameDetailsPage::loadGame(const QString& appId, const QString& name, bool s
     // Set title immediately
     m_heroTitleLabel->setText(m_gameName);
 
-    // Update install button
+    // Update install button — reset BOTH text and style for the new game
+    m_isDownloading = false;
     m_installButton->setEnabled(supported);
     m_installButton->setText("INSTALL");
+    m_installButton->setStyleSheet(
+        "QPushButton {"
+        "  background: #00E676; color: #000000; font-weight: 800; font-size: 16px;"
+        "  border-radius: 14px; font-family: 'Segoe UI'; border: none;"
+        "  letter-spacing: 1px;"
+        "}"
+        "QPushButton:hover {"
+        "  background: #00C853;"
+        "}"
+        "QPushButton:disabled {"
+        "  background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.3);"
+        "}"
+    );
     m_installProgressBar->hide();
     m_installProgressBar->setValue(0);
 

@@ -2032,9 +2032,7 @@ void MainWindow::doRemoveGame() {
 void MainWindow::runPatchLogic() {
     if (m_selectedGame.isEmpty()) return;
     m_progress->setValue(0);
-    // Don't show terminal natively for immersive look
-    // m_terminalDialog->clear();
-    // m_terminalDialog->appendLog(QString("Initializing patch for: %1").arg(m_selectedGame["name"]), "INFO");
+    m_terminalDialog->hide(); // Ensure terminal dialog stays hidden
     
     m_dlWorker = new LuaDownloadWorker(m_selectedGame["appid"], this);
     connect(m_dlWorker, &LuaDownloadWorker::finished, this, &MainWindow::onPatchDone);
@@ -2042,51 +2040,40 @@ void MainWindow::runPatchLogic() {
         if (total > 0) {
             int pct = static_cast<int>(dl * 100 / total);
             m_progress->setValue(pct);
-            if (m_stack->currentIndex() == 3) { // Assuming 3 is GameDetailsPage index
+            if (m_stack->currentIndex() == 3) { // GameDetailsPage index
                 m_gameDetailsPage->updateInstallProgress(pct);
             }
         }
     });
     connect(m_dlWorker, &LuaDownloadWorker::status, [this](QString msg) { m_statusLabel->setText(msg); });
-    connect(m_dlWorker, &LuaDownloadWorker::log, m_terminalDialog, &TerminalDialog::appendLog);
     connect(m_dlWorker, &LuaDownloadWorker::error, this, &MainWindow::onPatchError);
     m_dlWorker->start();
 }
 
 void MainWindow::onPatchDone(QString path) {
     try {
-        m_terminalDialog->appendLog("Patch file downloaded. Installing...", "INFO");
         QStringList targetDirs = Config::getAllSteamPluginDirs();
         if (targetDirs.isEmpty()) {
             targetDirs.append(Config::getSteamPluginDir());
-            m_terminalDialog->appendLog("No cached plugin paths found, using default.", "WARN");
         }
         bool ok = false;
         QString lastErr;
         for (const QString& pluginDir : targetDirs) {
-            m_terminalDialog->appendLog(QString("checking for stplug folder: %1").arg(pluginDir), "INFO");
             QDir dir(pluginDir);
-            if (dir.exists()) {
-                m_terminalDialog->appendLog(QString("found stplug in %1").arg(pluginDir), "INFO");
-            } else {
-                m_terminalDialog->appendLog(QString("creating stplug folder in %1").arg(pluginDir), "INFO");
+            if (!dir.exists()) {
                 if (!dir.mkpath(pluginDir)) {
-                    m_terminalDialog->appendLog(QString("Failed to create directory: %1").arg(pluginDir), "ERROR");
                     continue;
                 }
             }
             QString dest = dir.filePath(m_selectedGame["appid"] + ".lua");
-            if (QFile::exists(dest)) { m_terminalDialog->appendLog("Removing existing patch file...", "INFO"); QFile::remove(dest); }
-            m_terminalDialog->appendLog(QString("Copying patch to %1").arg(dest), "INFO");
-            if (QFile::copy(path, dest)) { m_terminalDialog->appendLog("Copy successful", "SUCCESS"); ok = true; }
-            else { lastErr = "Failed to copy patch file to " + pluginDir; m_terminalDialog->appendLog(lastErr, "ERROR"); }
+            if (QFile::exists(dest)) { QFile::remove(dest); }
+            if (QFile::copy(path, dest)) { ok = true; }
+            else { lastErr = "Failed to copy patch file to " + pluginDir; }
         }
         if (!ok) throw std::runtime_error(lastErr.toStdString());
         QFile::remove(path);
         m_progress->hide();
         m_statusLabel->setText("Patch Installed!");
-        m_terminalDialog->appendLog("All operations completed successfully.", "SUCCESS");
-        m_terminalDialog->setFinished(true);
         
         if (m_stack->currentIndex() == 3) {
             m_gameDetailsPage->installFinished();
@@ -2098,9 +2085,7 @@ void MainWindow::onPatchDone(QString path) {
 
 void MainWindow::onPatchError(QString error) {
     m_progress->hide();
-    m_statusLabel->setText("Error");
-    m_terminalDialog->appendLog(QString("Process failed: %1").arg(error), "ERROR");
-    m_terminalDialog->setFinished(false);
+    m_statusLabel->setText("Error: " + error);
     
     if (m_stack->currentIndex() == 3) {
         m_gameDetailsPage->installError(error);
