@@ -12,7 +12,7 @@ ProfileCard::ProfileCard(const QString& username, const QJsonObject& userData, Q
 {
     setAttribute(Qt::WA_TranslucentBackground);
     setAttribute(Qt::WA_DeleteOnClose);
-    setFixedSize(320, 450);
+    setFixedSize(380, 540);
     
     setupUI();
 }
@@ -36,7 +36,7 @@ void ProfileCard::setupUI() {
     layout->setSpacing(0);
     
     // Avatar Section
-    int avSize = 140;
+    int avSize = 180;
     QWidget* avatarWrapper = new QWidget();
     avatarWrapper->setFixedSize(avSize + 10, avSize + 10);
     avatarWrapper->setStyleSheet("background: transparent;");
@@ -106,13 +106,13 @@ void ProfileCard::setupUI() {
     // Username
     QLabel* nameLabel = new QLabel(m_username);
     nameLabel->setAlignment(Qt::AlignCenter);
-    nameLabel->setStyleSheet("color: white; font-size: 28px; font-weight: 800; font-family: 'Segoe UI'; background: transparent;");
+    nameLabel->setStyleSheet("color: white; font-size: 34px; font-weight: 900; font-family: 'Segoe UI'; background: transparent; letter-spacing: 0.5px;");
     layout->addWidget(nameLabel);
     
     // Badge Label
     QLabel* subLabel = new QLabel("PREMIUM MEMBER");
     subLabel->setAlignment(Qt::AlignCenter);
-    subLabel->setStyleSheet("color: #8FABD4; font-size: 13px; font-weight: 900; letter-spacing: 2px; margin-top: 5px; background: transparent;");
+    subLabel->setStyleSheet("color: #8FABD4; font-size: 14px; font-weight: 900; letter-spacing: 3px; margin-top: 5px; background: transparent;");
     layout->addWidget(subLabel);
     
     layout->addSpacing(40);
@@ -134,10 +134,10 @@ void ProfileCard::setupUI() {
         v->setSpacing(5);
         QLabel* vLbl = new QLabel(val);
         vLbl->setAlignment(Qt::AlignCenter);
-        vLbl->setStyleSheet("color: white; font-size: 22px; font-weight: 800; background: transparent;");
+        vLbl->setStyleSheet("color: white; font-size: 26px; font-weight: 900; background: transparent;");
         QLabel* lLbl = new QLabel(label);
         lLbl->setAlignment(Qt::AlignCenter);
-        lLbl->setStyleSheet("color: #8FABD4; font-size: 10px; font-weight: bold; letter-spacing: 1px; background: transparent;");
+        lLbl->setStyleSheet("color: #8FABD4; font-size: 11px; font-weight: bold; letter-spacing: 1.5px; background: transparent;");
         v->addWidget(vLbl);
         v->addWidget(lLbl);
         return v;

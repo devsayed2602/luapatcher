@@ -1100,7 +1100,7 @@ void MainWindow::initUI() {
     int avSz = 40;
     QWidget* avatarContainer = new QWidget();
     avatarContainer->setFixedSize(avSz, avSz);
-    avatarContainer->setStyleSheet("background: transparent;");
+    avatarContainer->setStyleSheet("background: transparent; border: none; margin: 0; padding: 0;");
 
     QPixmap avatarPix(avSz, avSz);
     avatarPix.fill(Qt::transparent);
@@ -1135,6 +1135,7 @@ void MainWindow::initUI() {
     ap.end();
 
     QLabel* avatarLabel = new QLabel(avatarContainer);
+    avatarLabel->setStyleSheet("background: transparent; border: none; margin: 0; padding: 0;");
     avatarLabel->setPixmap(avatarPix);
     avatarLabel->setGeometry(0, 0, avSz, avSz);
     avatarContainer->setAttribute(Qt::WA_TransparentForMouseEvents);
@@ -2109,6 +2110,22 @@ void MainWindow::onPatchDone(QString path) {
         }
         if (!ok) throw std::runtime_error(lastErr.toStdString());
         QFile::remove(path);
+        
+        // Increment games patched
+        if (!m_isGuest && !m_username.isEmpty()) {
+            int currentPatched = m_userData["games_patched"].toInt(0);
+            currentPatched++;
+            m_userData["games_patched"] = currentPatched;
+            
+            QJsonObject payload;
+            payload["games_patched"] = currentPatched;
+            
+            QUrl url(Config::WEBSERVER_BASE_URL + "/api/user/profile?username=" + m_username);
+            QNetworkRequest req(url);
+            req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+            m_networkManager->post(req, QJsonDocument(payload).toJson());
+        }
+        
         m_progress->hide();
         m_statusLabel->setText("Patch Installed!");
         
