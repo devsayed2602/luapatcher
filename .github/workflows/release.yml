@@ -39,9 +39,9 @@ jobs:
       uses: actions/cache@v4
       with:
         path: C:\Qt\Static
-        key: qt-static-${{ env.QT_VERSION }}-msvc-v6
+        key: qt-static-${{ env.QT_VERSION }}-msvc-v7-svg
         restore-keys: |
-          qt-static-${{ env.QT_VERSION }}-msvc-
+          qt-static-${{ env.QT_VERSION }}-msvc-v7-
 
     - name: Download and Build Static Qt
       if: steps.cache-qt-static.outputs.cache-hit != 'true'
@@ -50,13 +50,22 @@ jobs:
         Write-Host "Downloading Qt ${{ env.QT_VERSION }} source..."
         pip install aqtinstall
         New-Item -ItemType Directory -Force -Path "C:\Qt\Source"
-        aqt install-src windows ${{ env.QT_VERSION }} --outputdir "C:\Qt\Source" --archives qtbase
+        aqt install-src windows ${{ env.QT_VERSION }} --outputdir "C:\Qt\Source" --archives qtbase qtsvg
         
+        # Build qtbase first
         $qtbasePath = "C:\Qt\Source\${{ env.QT_VERSION }}\Src\qtbase"
         Set-Location $qtbasePath
         & cmd /c "configure.bat -release -static -static-runtime -prefix C:\Qt\Static\${{ env.QT_VERSION }} -opensource -confirm-license -nomake examples -nomake tests -schannel -no-opengl -no-feature-sql"
         cmake --build . --parallel
         cmake --install .
+        
+        # Build qtsvg on top of qtbase
+        $qtsvgPath = "C:\Qt\Source\${{ env.QT_VERSION }}\Src\qtsvg"
+        Set-Location $qtsvgPath
+        $env:CMAKE_PREFIX_PATH = "C:\Qt\Static\${{ env.QT_VERSION }}"
+        cmake -B build -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="C:\Qt\Static\${{ env.QT_VERSION }}" -DCMAKE_INSTALL_PREFIX="C:\Qt\Static\${{ env.QT_VERSION }}"
+        cmake --build build --parallel
+        cmake --install build
 
     - name: Build LuaPatcher (Static)
       shell: pwsh
