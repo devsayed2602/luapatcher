@@ -408,11 +408,12 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
             }
         }
     } else if (obj == m_topProfileWidget && event->type() == QEvent::MouseButtonPress) {
-        ProfileCard* card = new ProfileCard(m_username, m_userData, this);
-        // Center on screen or position near the widget
-        card->show();
-        // Center the card
-        card->move(geometry().center() - card->rect().center());
+        // Open profile card after the mouse event finishes processing
+        QTimer::singleShot(50, this, [this]() {
+            ProfileCard* card = new ProfileCard(m_username, m_userData, this);
+            card->move(geometry().center() - QPoint(card->width() / 2, card->height() / 2));
+            card->exec();
+        });
         return true;
     } else if (obj == m_sidebarWidget) {
         // Sidebar is always expanded — no animation
