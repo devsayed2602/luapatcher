@@ -1095,68 +1095,47 @@ void MainWindow::initUI() {
     capsuleLayout->setContentsMargins(6, 6, 16, 6);
     capsuleLayout->setSpacing(10);
 
-    // ── Avatar with glowing ring + pulsing online dot ──
+    // ── Avatar with clean ring + online dot ──
     int avSz = 40;
-    int ringPad = 3; // Ring thickness
-    int totalSz = avSz + ringPad * 2;
     QWidget* avatarContainer = new QWidget();
-    avatarContainer->setFixedSize(totalSz, totalSz);
+    avatarContainer->setFixedSize(avSz, avSz);
     avatarContainer->setStyleSheet("background: transparent;");
 
-    QPixmap avatarPix(totalSz * 2, totalSz * 2); // 2x for retina sharpness
+    QPixmap avatarPix(avSz, avSz);
     avatarPix.fill(Qt::transparent);
     QPainter ap(&avatarPix);
     ap.setRenderHint(QPainter::Antialiasing);
-    int s2 = totalSz * 2;
-    int av2 = avSz * 2;
-    int rp2 = ringPad * 2;
 
-    // Outer glow ring
-    QRadialGradient ringGlow(s2 / 2.0, s2 / 2.0, s2 / 2.0);
-    ringGlow.setColorAt(0.75, QColor(143, 171, 212, 100));
-    ringGlow.setColorAt(0.88, QColor(143, 171, 212, 50));
-    ringGlow.setColorAt(1.0, QColor(143, 171, 212, 0));
-    ap.setPen(Qt::NoPen);
-    ap.setBrush(ringGlow);
-    ap.drawEllipse(0, 0, s2, s2);
-
-    // Ring border
-    ap.setPen(QPen(QColor(143, 171, 212, 120), 2));
+    // Soft ring border
+    ap.setPen(QPen(QColor(143, 171, 212, 80), 1.5));
     ap.setBrush(Qt::NoBrush);
-    ap.drawEllipse(rp2, rp2, av2, av2);
+    ap.drawEllipse(QRectF(1, 1, avSz - 2, avSz - 2));
 
     // Inner filled circle (avatar background)
     ap.setPen(Qt::NoPen);
     ap.setBrush(QColor("#4A6FA5"));
-    ap.drawEllipse(rp2 + 2, rp2 + 2, av2 - 4, av2 - 4);
+    ap.drawEllipse(QRectF(3, 3, avSz - 6, avSz - 6));
 
     // Letter initial
     ap.setPen(QColor(255, 255, 255, 240));
-    ap.setFont(QFont("Segoe UI", 18, QFont::Bold));
-    QRect letterRect(rp2, rp2, av2, av2);
-    ap.drawText(letterRect, Qt::AlignCenter, m_username.isEmpty() ? "U" : m_username.left(1).toUpper());
+    ap.setFont(QFont("Segoe UI", 14, QFont::Bold));
+    ap.drawText(QRectF(3, 3, avSz - 6, avSz - 6), Qt::AlignCenter, m_username.isEmpty() ? "U" : m_username.left(1).toUpper());
 
-    // Green pulsing online dot
-    int dotSz = 14;
-    int dotX = s2 - dotSz - 4;
-    int dotY = s2 - dotSz - 2;
-    // Dark outline ring
+    // Green online dot (bottom-right)
+    int dotSz = 10;
+    int dotX = avSz - dotSz - 1;
+    int dotY = avSz - dotSz - 1;
     ap.setBrush(QColor(15, 20, 30));
     ap.setPen(Qt::NoPen);
-    ap.drawEllipse(dotX - 3, dotY - 3, dotSz + 6, dotSz + 6);
-    // Green dot
-    QRadialGradient dotGlow(dotX + dotSz / 2.0, dotY + dotSz / 2.0, dotSz / 2.0);
-    dotGlow.setColorAt(0.0, QColor("#5AFF7E"));
-    dotGlow.setColorAt(0.6, QColor("#2ECC71"));
-    dotGlow.setColorAt(1.0, QColor("#27AE60"));
-    ap.setBrush(dotGlow);
+    ap.drawEllipse(dotX - 2, dotY - 2, dotSz + 4, dotSz + 4);
+    ap.setBrush(QColor("#2ECC71"));
     ap.drawEllipse(dotX, dotY, dotSz, dotSz);
 
     ap.end();
 
     QLabel* avatarLabel = new QLabel(avatarContainer);
-    avatarLabel->setPixmap(avatarPix.scaled(totalSz, totalSz, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-    avatarLabel->setGeometry(0, 0, totalSz, totalSz);
+    avatarLabel->setPixmap(avatarPix);
+    avatarLabel->setGeometry(0, 0, avSz, avSz);
     avatarContainer->setAttribute(Qt::WA_TransparentForMouseEvents);
     capsuleLayout->addWidget(avatarContainer);
 
