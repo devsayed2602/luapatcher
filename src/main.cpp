@@ -8,6 +8,7 @@
 #include <QJsonObject>
 #include <QStandardPaths>
 #include <QDir>
+#include <QDebug>
 
 QString getStyleSheet() {
     return QString(R"(
@@ -129,14 +130,18 @@ QToolTip {
 }
 
 int main(int argc, char *argv[]) {
+    qDebug() << "Step 1: Starting main";
     QCoreApplication::setOrganizationName("leVi Studios");
     QCoreApplication::setApplicationName("LuaPatcher");
 
+    qDebug() << "Step 2: Creating QApplication";
     QApplication app(argc, argv);
+    qDebug() << "Step 3: Setting icon and style";
     app.setWindowIcon(QIcon("logo.ico"));
     app.setStyle("Fusion");
     app.setStyleSheet(getStyleSheet());
     
+    qDebug() << "Step 4: Setting up fonts";
     // Material Design font: Roboto (fallback Segoe UI)
     QFont font("Roboto");
     if (!QFontInfo(font).exactMatch()) {
@@ -150,6 +155,7 @@ int main(int argc, char *argv[]) {
     font.setStyleStrategy(QFont::PreferAntialias);
     app.setFont(font);
     
+    qDebug() << "Step 5: Setting up settings";
     // Use AppData folder for settings (Fixes permission issues in Program Files)
     QString appDataPath = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
     QDir().mkpath(appDataPath);
@@ -161,6 +167,7 @@ int main(int argc, char *argv[]) {
     bool isGuest = false;
 
     if (username.isEmpty()) {
+        qDebug() << "Step 6: Showing onboarding dialog";
         OnboardingDialog dialog;
         if (dialog.exec() == QDialog::Accepted) {
             isGuest = dialog.isGuest();
@@ -174,9 +181,11 @@ int main(int argc, char *argv[]) {
             settings.setValue("username", username);
             settings.setValue("isGuest", isGuest);
         } else {
+            qDebug() << "Step 6.1: Onboarding cancelled";
             return 0; // User closed onboarding, exit app
         }
     } else {
+        qDebug() << "Step 6.2: Loading existing user data";
         isGuest = settings.value("isGuest", false).toBool();
         QString dataStr = settings.value("userData", "").toString();
         if (!dataStr.isEmpty()) {
@@ -184,9 +193,13 @@ int main(int argc, char *argv[]) {
         }
     }
     
+    qDebug() << "Step 7: Creating MainWindow";
     MainWindow window;
+    qDebug() << "Step 8: Setting initial user";
     window.setInitialUser(username, initialUserData, isGuest);
+    qDebug() << "Step 9: Showing window maximized";
     window.showMaximized();
-    
+    qDebug() << "Step 10: Starting event loop";
+
     return app.exec();
 }

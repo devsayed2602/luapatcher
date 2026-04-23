@@ -414,9 +414,11 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
         } else if (obj == m_topProfileWidget) {
             // Open profile card after the mouse event finishes processing
             QTimer::singleShot(50, this, [this]() {
+                showBlurOverlay();
                 ProfileCard* card = new ProfileCard(m_username, m_userData, this);
                 card->move(geometry().center() - QPoint(card->width() / 2, card->height() / 2));
-                card->show();
+                card->exec();
+                hideBlurOverlay();
             });
             return true;
         }
@@ -998,7 +1000,7 @@ void MainWindow::initUI() {
     m_gridLayout = new QGridLayout(m_gridContainer);
     m_gridLayout->setContentsMargins(0, 0, 0, 0); 
     m_gridLayout->setSpacing(12); // Optimized for 190px cards
-    m_gridLayout->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    m_gridLayout->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
     m_mainScrollLayout->addWidget(m_gridContainer);
     
     m_mainScrollArea->setWidget(m_mainScrollContainer);
@@ -1243,9 +1245,11 @@ void MainWindow::initUI() {
     btnLayout->addStretch();
     
     connect(addFriendBtn, &QPushButton::clicked, this, [this]() {
+        showBlurOverlay();
         AddFriendDialog* dialog = new AddFriendDialog(m_username, m_networkManager, this);
         dialog->move(geometry().center() - dialog->rect().center());
         dialog->exec();
+        hideBlurOverlay();
     });
     rightLayout->addWidget(addFriendBtn);
 
@@ -1505,13 +1509,13 @@ void MainWindow::displayRandomGames() {
         GameCard* card = new GameCard(m_gridLayout->parentWidget());
         card->setGameData(cd);
         connect(card, &GameCard::clicked, this, &MainWindow::onCardClicked);
-        m_gridLayout->addWidget(card, gridIdx  / 5, gridIdx  % 5);
         m_gameCards.append(card);
 
         if (m_thumbnailCache.contains(game.id)) card->setThumbnail(m_thumbnailCache[game.id]);
         gridIdx++;
     }
 
+    rearrangeGameGrid(true); // Dynamically layout the grid
     QTimer::singleShot(50, this, &MainWindow::loadVisibleThumbnails);
     if (!m_pendingNameFetchIds.isEmpty()) startBatchNameFetch();
 
@@ -1616,13 +1620,13 @@ void MainWindow::displayLibrary() {
         card->setGameData({{"name", name}, {"appid", appId}, {"supported", "local"}, {"hasFix", hasFix ? "true" : "false"}});
         card->setSelectable(true);
         connect(card, &GameCard::selectionChanged, this, &MainWindow::onSelectionChanged);
-        m_gridLayout->addWidget(card, count  / 5, count  % 5);
         m_gameCards.append(card);
 
         if (m_thumbnailCache.contains(appId)) card->setThumbnail(m_thumbnailCache[appId]);
         count++;
     }
 
+    rearrangeGameGrid(true);
     QTimer::singleShot(50, this, &MainWindow::loadVisibleThumbnails);
     if (!m_pendingNameFetchIds.isEmpty()) startBatchNameFetch();
     
@@ -1647,9 +1651,9 @@ void MainWindow::startSync() {
         for (int i = 0; i < 12; ++i) {
             GameCard* card = new GameCard(m_gridLayout->parentWidget());
             card->setSkeleton(true);
-            m_gridLayout->addWidget(card, i  / 5, i  % 5);
             m_gameCards.append(card);
         }
+        rearrangeGameGrid(true);
         m_stack->setCurrentIndex(1);
         m_spinner->stop();
     }
@@ -1928,7 +1932,6 @@ void MainWindow::onSearchFinished(QNetworkReply* reply) {
             connect(card, &GameCard::clicked, this, &MainWindow::onCardClicked);
             
             int idx = m_gameCards.count();
-            m_gridLayout->addWidget(card, idx  / 5, idx  % 5);
             m_gameCards.append(card);
             cardMap.insert(id, card);
             changed = true;
@@ -1945,6 +1948,10 @@ void MainWindow::onSearchFinished(QNetworkReply* reply) {
                 });
             }
         }
+    }
+    
+    if (changed) {
+        rearrangeGameGrid(true);
     }
     
     m_statusLabel->setText(m_gameCards.isEmpty()
@@ -1989,13 +1996,14 @@ void MainWindow::displayResults(const QJsonArray& items) {
         GameCard* card = new GameCard(m_gridLayout->parentWidget());
         card->setGameData({{"name", name}, {"appid", appid}, {"supported", supported ? "true" : "false"}, {"hasFix", hasFix ? "true" : "false"}});
         connect(card, &GameCard::clicked, this, &MainWindow::onCardClicked);
-        m_gridLayout->addWidget(card, idx  / 5, idx  % 5);
         m_gameCards.append(card);
         
         if (m_thumbnailCache.contains(appid)) card->setThumbnail(m_thumbnailCache[appid]);
         if (name.startsWith("Unknown Game") || name == "Unknown") m_pendingNameFetchIds.append(appid);
         idx++;
     }
+    
+    rearrangeGameGrid(true);
     
     m_statusLabel->setText(QString("Search: Found %1 matches").arg(items.size()));
     QTimer::singleShot(50, this, &MainWindow::loadVisibleThumbnails);
@@ -2628,3 +2636,69 @@ void MainWindow::refreshFriendsList() {
         }
     });
 }
+
+void MainWindow::showBlurOverlay() {
+    if (!m_blurOverlay) {
+        m_blurOverlay = new QWidget(this);
+        m_blurOverlay->setStyleSheet("background-color: rgba(10, 12, 16, 180);"); // Cinematic dark tint
+    }
+    
+    // Apply blur to the central widget
+    if (centralWidget() && !m_blurEffect) {
+        m_blurEffect = new QGraphicsBlurEffect(this);
+        m_blurEffect->setBlurRadius(12); // Smooth Gaussian blur
+        centralWidget()->setGraphicsEffect(m_blurEffect);
+    }
+    
+    m_blurOverlay->resize(this->size());
+    m_blurOverlay->raise();
+    m_blurOverlay->show();
+}
+
+void MainWindow::hideBlurOverlay() {
+    if (m_blurOverlay) {
+        m_blurOverlay->hide();
+    }
+    if (centralWidget()) {
+        centralWidget()->setGraphicsEffect(nullptr);
+    }
+    // Note: setGraphicsEffect(nullptr) deletes the old effect, so no need to delete m_blurEffect
+    m_blurEffect = nullptr;
+}
+
+void MainWindow::resizeEvent(QResizeEvent* event) {
+    QMainWindow::resizeEvent(event);
+    rearrangeGameGrid();
+}
+
+void MainWindow::rearrangeGameGrid(bool force) {
+    if (!m_mainScrollArea || !m_gridLayout || m_gameCards.isEmpty()) return;
+
+    // Viewport width is the actual space available for cards
+    int availableWidth = m_mainScrollArea->viewport()->width() - 40; // Subtract padding/margins
+    if (availableWidth < 200) availableWidth = 200; // Fallback
+    
+    int minCardWidth = 186;
+    int spacing = 12;
+
+    // Calculate max columns that fit based on minimum card width
+    int cols = qMax(1, (availableWidth + spacing) / (minCardWidth + spacing));
+
+    // Calculate the perfect flexible card width to fill the entire row
+    // Subtract total spacing from available width, then divide by columns
+    int flexCardWidth = (availableWidth - (cols - 1) * spacing) / cols;
+    // Maintain exact 2:3 aspect ratio
+    int flexCardHeight = flexCardWidth * 279 / 186; 
+
+    // Skip relayout if column count and card size are identical to avoid CPU usage
+    if (!force && cols == m_currentGridCols && m_gameCards.first()->width() == flexCardWidth) return;
+    
+    m_currentGridCols = cols;
+
+    // Reposition and dynamically resize all cards
+    for (int i = 0; i < m_gameCards.size(); i++) {
+        m_gameCards[i]->setFixedSize(flexCardWidth, flexCardHeight);
+        m_gridLayout->addWidget(m_gameCards[i], i / cols, i % cols);
+    }
+}
+

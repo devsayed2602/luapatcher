@@ -9,7 +9,15 @@
 #include <QNetworkRequest>
 #include <QNetworkReply>
 #include <QJsonDocument>
+#include <QJsonArray>
 #include <QJsonObject>
+#include <QJsonValue>
+#include <QTimer>
+#include <QVBoxLayout>
+#include <QLabel>
+#include <QLineEdit>
+#include <QPushButton>
+#include <QListWidget>
 
 AddFriendDialog::AddFriendDialog(const QString& currentUsername, QNetworkAccessManager* netMgr, QWidget* parent)
     : QDialog(parent, Qt::FramelessWindowHint | Qt::Dialog), 
@@ -17,7 +25,7 @@ AddFriendDialog::AddFriendDialog(const QString& currentUsername, QNetworkAccessM
 {
     setAttribute(Qt::WA_TranslucentBackground);
     setAttribute(Qt::WA_DeleteOnClose);
-    setFixedSize(380, 360);
+    setFixedSize(380, 480); // Increased height for search results
     
     setupUI();
 }
@@ -121,6 +129,35 @@ void AddFriendDialog::setupUI() {
     m_statusLabel->hide();
     layout->addWidget(m_statusLabel);
     
+    m_searchResults = new QListWidget();
+    m_searchResults->setStyleSheet(
+        "QListWidget {"
+        "  background: transparent;"
+        "  border: none;"
+        "  outline: none;"
+        "}"
+        "QListWidget::item {"
+        "  background: rgba(255, 255, 255, 0.05);"
+        "  border-radius: 6px;"
+        "  margin-bottom: 4px;"
+        "  color: white;"
+        "  padding: 8px;"
+        "}"
+        "QListWidget::item:hover {"
+        "  background: rgba(255, 255, 255, 0.1);"
+        "}"
+        "QListWidget::item:selected {"
+        "  background: rgba(46, 204, 113, 0.2);"
+        "  border: 1px solid rgba(46, 204, 113, 0.5);"
+        "}"
+    );
+    m_searchResults->setCursor(Qt::PointingHandCursor);
+    m_searchResults->hide();
+    layout->addWidget(m_searchResults);
+    
+    connect(m_searchInput, &QLineEdit::textChanged, this, &AddFriendDialog::onSearchTextChanged);
+    connect(m_searchResults, &QListWidget::itemClicked, this, &AddFriendDialog::onSearchResultClicked);
+    
     layout->addStretch();
     
     // Primary Button
@@ -194,8 +231,9 @@ void AddFriendDialog::sendInvitation() {
 }
 
 void AddFriendDialog::paintEvent(QPaintEvent* event) {
-    QPainter p(this);
-    p.fillRect(rect(), QColor(0, 0, 0, 150)); // Dark semi-transparent overlay
+    Q_UNUSED(event);
+    // Removed black square overlay to fix corner artifacts. 
+    // The main window handles background blur and darkening.
 }
 
 void AddFriendDialog::showEvent(QShowEvent* event) {
@@ -205,6 +243,11 @@ void AddFriendDialog::showEvent(QShowEvent* event) {
     QPropertyAnimation* animScale = new QPropertyAnimation(m_container, "geometry", this);
     animScale->setDuration(300);
     animScale->setEasingCurve(QEasingCurve::OutBack);
+    
+    QPropertyAnimation* animFade = new QPropertyAnimation(m_container, "windowOpacity", this);
+    animFade->setDuration(250);
+    animFade->setStartValue(0.0);
+    animFade->setEndValue(1.0);
     
     QRect endGeom = m_container->geometry();
     QRect startGeom = endGeom;
@@ -220,4 +263,68 @@ void AddFriendDialog::showEvent(QShowEvent* event) {
 
 void AddFriendDialog::onClose() {
     close();
+}
+
+void AddFriendDialog::onSearchTextChanged(const QString& text) {
+    if (text.length() < 2) {
+        m_searchResults->clear();
+        m_searchResults->hide();
+        return;
+    }
+    
+    if (m_searchReply) {
+        m_searchReply->abort();
+        m_searchReply->deleteLater();
+        m_searchReply = nullptr;
+    }
+    
+    QString urlStr = QString("http://localhost:5000/api/social/search?query=%1").arg(text);
+    QNetworkRequest request{QUrl(urlStr)};
+    m_searchReply = m_netMgr->get(request);
+    connect(m_searchReply, &QNetworkReply::finished, this, [this]() {
+        onSearchFinished(m_searchReply);
+    });
+}
+
+void AddFriendDialog::onSearchFinished(QNetworkReply* reply) {
+    if (reply != m_searchReply) {
+        reply->deleteLater();
+        return;
+    }
+    
+    m_searchReply = nullptr;
+    
+    if (reply->error() == QNetworkReply::NoError) {
+        QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+        if (doc.isArray()) {
+            QJsonArray arr = doc.array();
+            m_searchResults->clear();
+            
+            for (const QJsonValue& val : arr) {
+                QJsonObject obj = val.toObject();
+                QString username = obj["username"].toString();
+                
+                // Exclude current user from search results
+                if (username.compare(m_currentUsername, Qt::CaseInsensitive) == 0) continue;
+                
+                QListWidgetItem* item = new QListWidgetItem(username);
+                item->setData(Qt::UserRole, username); // Store username in UserRole for easy retrieval
+                m_searchResults->addItem(item);
+            }
+            
+            if (m_searchResults->count() > 0) {
+                m_searchResults->show();
+            } else {
+                m_searchResults->hide();
+            }
+        }
+    }
+    reply->deleteLater();
+}
+
+void AddFriendDialog::onSearchResultClicked(QListWidgetItem* item) {
+    if (item) {
+        m_searchInput->setText(item->data(Qt::UserRole).toString());
+        m_searchResults->hide();
+    }
 }

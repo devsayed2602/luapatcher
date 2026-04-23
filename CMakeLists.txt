@@ -137,7 +137,7 @@ if(BUILD_STATIC)
 endif()
 
 # Windows-specific settings
-if(WIN32)
+if(WIN32 AND CMAKE_BUILD_TYPE STREQUAL "Release")
     set_target_properties(LuaPatcher PROPERTIES
         WIN32_EXECUTABLE TRUE
     )

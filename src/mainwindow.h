@@ -18,6 +18,7 @@
 #include <QScrollArea>
 #include <QGridLayout>
 #include <QSet>
+#include <QGraphicsBlurEffect>
 
 class GlassButton;
 class GameCard;
@@ -74,6 +75,7 @@ protected:
     bool eventFilter(QObject *obj, QEvent *event) override;
     void dragEnterEvent(QDragEnterEvent* event) override;
     void dropEvent(QDropEvent* event) override;
+    void resizeEvent(QResizeEvent* event) override;
 
 private slots:
     void onSyncDone(QList<GameInfo> games);
@@ -100,6 +102,8 @@ private slots:
     void updateModeUI();
     void processNextNameFetch();
     void loadVisibleThumbnails();
+    
+    void rearrangeGameGrid(bool force = false);
 
     // Game Details
     void onGameDetailsBack();
@@ -128,6 +132,8 @@ private:
     void scrollCarousel();
     void loadNameCache();
     void saveNameCache();
+    void showBlurOverlay();
+    void hideBlurOverlay();
     bool loadCachedIndex();
     void updateAmbientGlow();
     void enableAcrylicBlur();
@@ -141,6 +147,8 @@ private:
     QStackedWidget* m_stack;
     LoadingSpinner* m_spinner;
     QProgressBar* m_progress;
+    QWidget* m_blurOverlay = nullptr;
+    QGraphicsBlurEffect* m_blurEffect = nullptr;
     
     // Main Content
     CustomTitleBar* m_titleBar;
@@ -168,6 +176,7 @@ private:
     QGridLayout* m_gridLayout;
     QList<GameCard*> m_gameCards;
     GameCard* m_selectedCard = nullptr;
+    int m_currentGridCols = 0;
     
     // Sidebar Profile
     QWidget* m_sidebarProfileWidget;

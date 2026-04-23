@@ -10,6 +10,8 @@
 #include <QJsonObject>
 #include <QNetworkAccessManager>
 
+#include <QListWidget>
+
 class AddFriendDialog : public QDialog {
     Q_OBJECT
 public:
@@ -22,17 +24,22 @@ protected:
 private slots:
     void sendInvitation();
     void onClose();
+    void onSearchTextChanged(const QString& text);
+    void onSearchFinished(QNetworkReply* reply);
+    void onSearchResultClicked(QListWidgetItem* item);
 
 private:
     void setupUI();
     
     QString m_currentUsername;
     QNetworkAccessManager* m_netMgr;
+    QNetworkReply* m_searchReply = nullptr;
     
     QLineEdit* m_searchInput;
     QPushButton* m_sendBtn;
     QPushButton* m_closeBtn;
     QLabel* m_statusLabel;
+    QListWidget* m_searchResults;
     
     QWidget* m_container;
 };
