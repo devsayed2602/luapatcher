@@ -2649,9 +2649,9 @@ void MainWindow::refreshFriendsList() {
         m_userData["friends_count"] = friendsList.size();
         
         for (const QJsonObject& f : friendsList) {
-            QWidget* item = new QWidget();
-            item->setFixedHeight(50);
-            QHBoxLayout* lay = new QHBoxLayout(item);
+            QWidget* friendWidget = new QWidget();
+            friendWidget->setFixedHeight(50);
+            QHBoxLayout* lay = new QHBoxLayout(friendWidget);
             lay->setContentsMargins(0, 5, 0, 5);
             lay->setSpacing(12);
             
@@ -2701,7 +2701,7 @@ void MainWindow::refreshFriendsList() {
             lay->addLayout(info);
             lay->addStretch();
             
-            m_friendsLayout->addWidget(item);
+            m_friendsLayout->addWidget(friendWidget);
         }
     });
 }

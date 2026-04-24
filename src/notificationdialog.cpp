@@ -213,7 +213,8 @@ QWidget* NotificationDialog::createRequestCard(const QString& username) {
         "}"
     );
     connect(acceptBtn, &QPushButton::clicked, this, [this, username, card]() {
-        acceptRequest(username, card);
+        QPointer<QWidget> cardGuard(card);
+        acceptRequest(username, cardGuard);
     });
     cardLayout->addWidget(acceptBtn);
 
@@ -236,7 +237,8 @@ QWidget* NotificationDialog::createRequestCard(const QString& username) {
         "}"
     );
     connect(rejectBtn, &QPushButton::clicked, this, [this, username, card]() {
-        rejectRequest(username, card);
+        QPointer<QWidget> cardGuard(card);
+        rejectRequest(username, cardGuard);
     });
     cardLayout->addWidget(rejectBtn);
 
@@ -290,7 +292,7 @@ void NotificationDialog::fetchPendingRequests() {
     });
 }
 
-void NotificationDialog::acceptRequest(const QString& username, QWidget* card) {
+void NotificationDialog::acceptRequest(const QString& username, QPointer<QWidget> card) {
     if (!m_netMgr) return;
 
     QJsonObject payload;
@@ -318,7 +320,7 @@ void NotificationDialog::acceptRequest(const QString& username, QWidget* card) {
     });
 }
 
-void NotificationDialog::rejectRequest(const QString& username, QWidget* card) {
+void NotificationDialog::rejectRequest(const QString& username, QPointer<QWidget> card) {
     if (!m_netMgr) return;
 
     QJsonObject payload;

@@ -12,6 +12,7 @@
 #include <QStackedWidget>
 #include <QTimer>
 #include <QPropertyAnimation>
+#include <QPointer>
 #include <QJsonObject>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -150,7 +151,7 @@ private:
     QStackedWidget* m_stack;
     LoadingSpinner* m_spinner;
     QProgressBar* m_progress;
-    QWidget* m_blurOverlay = nullptr;
+    QPointer<QWidget> m_blurOverlay = nullptr;
     QGraphicsBlurEffect* m_blurEffect = nullptr;
     
     QPushButton* m_mainNotifBtn = nullptr;
@@ -185,13 +186,13 @@ private:
     int m_currentGridCols = 0;
     
     // Sidebar Profile
-    QWidget* m_sidebarProfileWidget;
-    QLabel* m_sidebarAvatarLabel = nullptr;
-    QLabel* m_sidebarUsernameLabel = nullptr;
+    QPointer<QWidget> m_sidebarProfileWidget;
+    QPointer<QLabel> m_sidebarAvatarLabel = nullptr;
+    QPointer<QLabel> m_sidebarUsernameLabel = nullptr;
 
     // Right panel profile (matching dashboard design)
-    QWidget* m_topProfileWidget;
-    QLabel* m_topUsernameLabel;
+    QPointer<QWidget> m_topProfileWidget;
+    QPointer<QLabel> m_topUsernameLabel;
     
     // Header & Tabs
     GlassButton* m_tabLua;
@@ -207,10 +208,10 @@ private:
     GameDetailsPage* m_gameDetailsPage;
 
     // Sidebar
-    QWidget* m_sidebarWidget;
-    QWidget* m_rightPanelWidget;
-    QWidget* m_friendsContainer;
-    QVBoxLayout* m_friendsLayout;
+    QPointer<QWidget> m_sidebarWidget;
+    QPointer<QWidget> m_rightPanelWidget;
+    QPointer<QWidget> m_friendsContainer;
+    QPointer<QVBoxLayout> m_friendsLayout;
     bool m_sidebarExpanded = false;
     QPropertyAnimation* m_sidebarAnimation;
     QTimer* m_sidebarCollapseTimer;
@@ -218,7 +219,7 @@ private:
     QTimer* m_notifTimer = nullptr;
     
     // Animated sidebar indicator bar
-    QWidget* m_sidebarIndicator = nullptr;
+    QPointer<QWidget> m_sidebarIndicator = nullptr;
     QPropertyAnimation* m_indicatorAnimation = nullptr;
     
     QLabel* m_appTitleLabel;

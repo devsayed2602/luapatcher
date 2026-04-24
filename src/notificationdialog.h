@@ -9,6 +9,7 @@
 #include <QScrollArea>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
+#include <QPointer>
 
 class NotificationDialog : public QDialog {
     Q_OBJECT
@@ -29,8 +30,8 @@ private:
     void setupUI();
     void fetchPendingRequests();
     QWidget* createRequestCard(const QString& username);
-    void acceptRequest(const QString& username, QWidget* card);
-    void rejectRequest(const QString& username, QWidget* card);
+    void acceptRequest(const QString& username, QPointer<QWidget> card);
+    void rejectRequest(const QString& username, QPointer<QWidget> card);
     void updateCountLabel();
 
     QString m_currentUsername;
