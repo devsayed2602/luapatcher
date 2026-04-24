@@ -426,8 +426,10 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
                 });
                 
                 card->move(geometry().center() - QPoint(card->width() / 2, card->height() / 2));
+                
+                QPointer<MainWindow> guard(this);
                 card->exec();
-                hideBlurOverlay();
+                if (guard) guard->hideBlurOverlay();
             });
             return true;
         }
@@ -1060,15 +1062,16 @@ void MainWindow::initUI() {
     GlassButton* browseBtn = new GlassButton(MaterialIcons::Search, " Browse...", "", Colors::PRIMARY);
     browseBtn->setFixedHeight(44);
     connect(browseBtn, &QPushButton::clicked, this, [this, pathInput]() {
+        QPointer<MainWindow> guard(this);
         QString dir = QFileDialog::getExistingDirectory(this, "Select Steam Plugin Directory", pathInput->text());
-        if (!dir.isEmpty()) {
-            // Unify separators visually
-            pathInput->setText(dir);
-            QString appDataPath = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
-            QString settingsPath = appDataPath + "/settings.ini";
-            QSettings settings(settingsPath, QSettings::IniFormat);
-            settings.setValue("PluginDir", dir);
-        }
+        if (!guard || dir.isEmpty()) return;
+        
+        // Unify separators visually
+        pathInput->setText(dir);
+        QString appDataPath = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+        QString settingsPath = appDataPath + "/settings.ini";
+        QSettings settings(settingsPath, QSettings::IniFormat);
+        settings.setValue("PluginDir", dir);
     });
     pathLayout->addWidget(browseBtn);
     settingsLayout->addLayout(pathLayout);
@@ -1275,8 +1278,9 @@ void MainWindow::initUI() {
         showBlurOverlay();
         AddFriendDialog* dialog = new AddFriendDialog(m_username, m_networkManager, this);
         dialog->move(geometry().center() - dialog->rect().center());
+        QPointer<MainWindow> guard(this);
         dialog->exec();
-        hideBlurOverlay();
+        if (guard) guard->hideBlurOverlay();
     });
     rightLayout->addWidget(addFriendBtn);
 

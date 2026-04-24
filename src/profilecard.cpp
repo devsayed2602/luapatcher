@@ -198,13 +198,15 @@ void ProfileCard::showEvent(QShowEvent* event) {
 void ProfileCard::onChangeAvatar() {
     if (!m_netMgr) return;
     
+    QPointer<ProfileCard> guard(this);
     QString filePath = QFileDialog::getOpenFileName(this, "Select Avatar", "", "Images (*.png *.jpg *.jpeg)");
-    if (filePath.isEmpty()) return;
+    if (!guard || filePath.isEmpty()) return;
     
     QPixmap pix(filePath);
     if (pix.isNull()) return;
     
-    // Resize for avatar usage and encode to base64
+    // Scale for local UI display (match setupUI size)
+    int avSize = 180;
     QPixmap scaled = pix.scaled(256, 256, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
     QByteArray ba;
     QBuffer buffer(&ba);
@@ -216,7 +218,6 @@ void ProfileCard::onChangeAvatar() {
     m_userData["avatar_url"] = base64;
     
     // Re-render UI using the same logic to update the avatar label
-    int avSize = 150;
     QPixmap avatarPix(avSize, avSize);
     avatarPix.fill(Qt::transparent);
     QPainter p(&avatarPix);
