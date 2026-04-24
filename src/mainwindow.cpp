@@ -7,6 +7,7 @@
 #include "profilecard.h"
 #include "customtitlebar.h"
 #include "materialicons.h"
+#include "notificationdialog.h"
 #include "workers/indexdownloadworker.h"
 #include "workers/luadownloadworker.h"
 #include "workers/generatorworker.h"
@@ -690,6 +691,7 @@ void MainWindow::initUI() {
     connect(m_titleBar, &CustomTitleBar::minimizeRequested, this, &MainWindow::onTitleBarMinimize);
     connect(m_titleBar, &CustomTitleBar::maximizeRequested, this, &MainWindow::onTitleBarMaximize);
     connect(m_titleBar, &CustomTitleBar::closeRequested, this, &MainWindow::onTitleBarClose);
+    connect(m_titleBar, &CustomTitleBar::notificationRequested, this, &MainWindow::onNotificationClicked);
     wrapperLayout->addWidget(m_titleBar);
 
     QHBoxLayout* rootLayout = new QHBoxLayout();
@@ -2540,6 +2542,14 @@ void MainWindow::setInitialUser(const QString& username, const QJsonObject& data
             m_heartbeatTimer->start(120000); // 120 seconds
             sendHeartbeat(); // Send first heartbeat immediately
         }
+        
+        // Start Notification Polling Timer (every 30 seconds)
+        if (!m_notifTimer) {
+            m_notifTimer = new QTimer(this);
+            connect(m_notifTimer, &QTimer::timeout, this, &MainWindow::fetchNotificationCount);
+            m_notifTimer->start(30000); // 30 seconds
+            fetchNotificationCount(); // Fetch immediately
+        }
     }
 }
 
@@ -2664,6 +2674,51 @@ void MainWindow::hideBlurOverlay() {
     }
     // Note: setGraphicsEffect(nullptr) deletes the old effect, so no need to delete m_blurEffect
     m_blurEffect = nullptr;
+}
+
+void MainWindow::onNotificationClicked() {
+    if (m_isGuest || m_username.isEmpty()) return;
+    
+    showBlurOverlay();
+    
+    NotificationDialog* dialog = new NotificationDialog(m_username, m_networkManager, this);
+    connect(dialog, &NotificationDialog::requestHandled, this, [this]() {
+        refreshFriendsList();
+        fetchNotificationCount();
+    });
+    connect(dialog, &QDialog::finished, this, [this]() {
+        hideBlurOverlay();
+        fetchNotificationCount(); // Refresh badge when dialog closes
+    });
+    
+    dialog->setGeometry(
+        (width() - dialog->width()) / 2,
+        (height() - dialog->height()) / 2,
+        dialog->width(),
+        dialog->height()
+    );
+    dialog->show();
+}
+
+void MainWindow::fetchNotificationCount() {
+    if (m_isGuest || m_username.isEmpty() || !m_networkManager) return;
+    
+    QString url = QString("%1/api/social/requests/pending?username=%2")
+        .arg(Config::WEBSERVER_BASE_URL).arg(m_username);
+    
+    QNetworkReply* reply = m_networkManager->get(QNetworkRequest{QUrl(url)});
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        reply->deleteLater();
+        if (reply->error() != QNetworkReply::NoError) return;
+        
+        QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+        if (doc.isArray()) {
+            int count = doc.array().size();
+            if (m_titleBar) {
+                m_titleBar->updateBadge(count);
+            }
+        }
+    });
 }
 
 void MainWindow::resizeEvent(QResizeEvent* event) {

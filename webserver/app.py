@@ -300,6 +300,21 @@ def accept_request():
     supabase.table('friendships').update({'status': 'accepted'}).eq('user_id', fid).eq('friend_id', uid).execute()
     return jsonify({'success': True})
 
+@app.route('/api/social/request/reject', methods=['POST'])
+def reject_request():
+    data = request.get_json()
+    my_user = data.get('username')
+    friend_user = data.get('friend_username')
+    
+    u1 = supabase.table('profiles').select('id').eq('username', my_user).execute()
+    u2 = supabase.table('profiles').select('id').eq('username', friend_user).execute()
+    
+    if not u1.data or not u2.data: return jsonify({'error': 'User not found'}), 404
+    uid, fid = u1.data[0]['id'], u2.data[0]['id']
+    
+    supabase.table('friendships').delete().eq('user_id', fid).eq('friend_id', uid).eq('status', 'pending').execute()
+    return jsonify({'success': True})
+
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
  

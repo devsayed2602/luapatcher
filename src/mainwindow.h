@@ -82,6 +82,8 @@ private slots:
     void onSyncError(QString error);
     void refreshFriendsList();
     void sendHeartbeat();
+    void onNotificationClicked();
+    void fetchNotificationCount();
     void onSearchChanged(const QString& text);
     void doSearch();
     void onSearchFinished(QNetworkReply* reply);
@@ -209,6 +211,7 @@ private:
     QPropertyAnimation* m_sidebarAnimation;
     QTimer* m_sidebarCollapseTimer;
     QTimer* m_heartbeatTimer = nullptr;
+    QTimer* m_notifTimer = nullptr;
     
     // Animated sidebar indicator bar
     QWidget* m_sidebarIndicator = nullptr;

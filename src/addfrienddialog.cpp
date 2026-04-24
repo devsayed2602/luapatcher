@@ -278,7 +278,7 @@ void AddFriendDialog::onSearchTextChanged(const QString& text) {
         m_searchReply = nullptr;
     }
     
-    QString urlStr = QString("http://localhost:5000/api/social/search?query=%1").arg(text);
+    QString urlStr = QString("%1/api/social/search?query=%2").arg(Config::WEBSERVER_BASE_URL).arg(text);
     QNetworkRequest request{QUrl(urlStr)};
     m_searchReply = m_netMgr->get(request);
     connect(m_searchReply, &QNetworkReply::finished, this, [this]() {
