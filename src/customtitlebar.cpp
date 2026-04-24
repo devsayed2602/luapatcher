@@ -38,34 +38,6 @@ CustomTitleBar::CustomTitleBar(QWidget* parent)
 
     layout->addStretch();
 
-    // Notification Bell Button
-    m_notifBtn = new QPushButton("🔔");
-    m_notifBtn->setObjectName("notifBtn");
-    m_notifBtn->setFixedSize(46, 40);
-    m_notifBtn->setToolTip("Notifications");
-    m_notifBtn->setStyleSheet(
-        "QPushButton#notifBtn { font-size: 15px; }"
-    );
-    connect(m_notifBtn, &QPushButton::clicked, this, &CustomTitleBar::notificationRequested);
-
-    // Red badge overlay on the bell button
-    m_notifBadge = new QLabel(m_notifBtn);
-    m_notifBadge->setFixedSize(18, 18);
-    m_notifBadge->setAlignment(Qt::AlignCenter);
-    m_notifBadge->move(28, 4);
-    m_notifBadge->setStyleSheet(
-        "background: #E74C3C;"
-        "color: white;"
-        "font-size: 9px;"
-        "font-weight: bold;"
-        "font-family: 'Segoe UI';"
-        "border-radius: 9px;"
-        "border: none;"
-    );
-    m_notifBadge->hide();
-
-    layout->addWidget(m_notifBtn);
-
     // System Buttons
     m_minBtn = new QPushButton("\u2014"); // Em Dash
     m_minBtn->setObjectName("minBtn");
@@ -92,15 +64,6 @@ CustomTitleBar::CustomTitleBar(QWidget* parent)
 
 void CustomTitleBar::setTitle(const QString& title) {
     m_titleLabel->setText(title);
-}
-
-void CustomTitleBar::updateBadge(int count) {
-    if (count > 0) {
-        m_notifBadge->setText(count > 9 ? "9+" : QString::number(count));
-        m_notifBadge->show();
-    } else {
-        m_notifBadge->hide();
-    }
 }
 
 void CustomTitleBar::mousePressEvent(QMouseEvent* event) {

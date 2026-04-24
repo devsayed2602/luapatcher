@@ -416,7 +416,7 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
             // Open profile card after the mouse event finishes processing
             QTimer::singleShot(50, this, [this]() {
                 showBlurOverlay();
-                ProfileCard* card = new ProfileCard(m_username, m_userData, this);
+                ProfileCard* card = new ProfileCard(m_username, m_userData, m_networkManager, this);
                 card->move(geometry().center() - QPoint(card->width() / 2, card->height() / 2));
                 card->exec();
                 hideBlurOverlay();
@@ -691,7 +691,6 @@ void MainWindow::initUI() {
     connect(m_titleBar, &CustomTitleBar::minimizeRequested, this, &MainWindow::onTitleBarMinimize);
     connect(m_titleBar, &CustomTitleBar::maximizeRequested, this, &MainWindow::onTitleBarMaximize);
     connect(m_titleBar, &CustomTitleBar::closeRequested, this, &MainWindow::onTitleBarClose);
-    connect(m_titleBar, &CustomTitleBar::notificationRequested, this, &MainWindow::onNotificationClicked);
     wrapperLayout->addWidget(m_titleBar);
 
     QHBoxLayout* rootLayout = new QHBoxLayout();
@@ -880,8 +879,26 @@ void MainWindow::initUI() {
     QWidget* topActions = new QWidget();
     QHBoxLayout* topActionsLayout = new QHBoxLayout(topActions);
     topActionsLayout->setContentsMargins(0, 0, 0, 0);
-    MaterialIconButton* notifBtn = new MaterialIconButton(MaterialIcons::Flash, Colors::toQColor(Colors::ON_SURFACE_VARIANT), 40, topActions);
-    topActionsLayout->addWidget(notifBtn);
+    m_mainNotifBtn = new MaterialIconButton(MaterialIcons::Notifications, Colors::toQColor(Colors::ON_SURFACE_VARIANT), 40, topActions);
+    connect(m_mainNotifBtn, &QPushButton::clicked, this, &MainWindow::onNotificationClicked);
+    
+    // Add badge
+    m_mainNotifBadge = new QLabel(m_mainNotifBtn);
+    m_mainNotifBadge->setFixedSize(16, 16);
+    m_mainNotifBadge->setAlignment(Qt::AlignCenter);
+    m_mainNotifBadge->move(20, 6);
+    m_mainNotifBadge->setStyleSheet(
+        "background: #E74C3C;"
+        "color: white;"
+        "font-size: 9px;"
+        "font-weight: bold;"
+        "font-family: 'Segoe UI';"
+        "border-radius: 8px;"
+        "border: none;"
+    );
+    m_mainNotifBadge->hide();
+    
+    topActionsLayout->addWidget(m_mainNotifBtn);
     topBarLayout->addWidget(topActions);
     
     mainLayout->addWidget(topBarWidget);
@@ -2578,7 +2595,7 @@ void MainWindow::refreshFriendsList() {
         if (reply->error() != QNetworkReply::NoError) return;
         
         QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
-        QJsonArray friends = doc.array();
+        QJsonArray friendsArray = doc.array();
         
         // Clear current list
         QLayoutItem* item;
@@ -2587,7 +2604,7 @@ void MainWindow::refreshFriendsList() {
             delete item;
         }
         
-        if (friends.isEmpty()) {
+        if (friendsArray.isEmpty()) {
             QLabel* noFriends = new QLabel("No friends yet. Add some!");
             noFriends->setStyleSheet("color: rgba(255, 255, 255, 0.4); font-size: 12px; font-style: italic; margin: 20px;");
             noFriends->setAlignment(Qt::AlignCenter);
@@ -2595,15 +2612,30 @@ void MainWindow::refreshFriendsList() {
             return;
         }
         
+        QList<QJsonObject> friendsList;
+        int onlineCount = 0;
+        for (const QJsonValue& v : friendsArray) {
+            QJsonObject f = v.toObject();
+            friendsList.append(f);
+            if (f["online"].toBool()) onlineCount++;
+        }
+        
+        // Sort: Online first, then alphabetical
+        std::sort(friendsList.begin(), friendsList.end(), [](const QJsonObject& a, const QJsonObject& b) {
+            bool aOnline = a["online"].toBool();
+            bool bOnline = b["online"].toBool();
+            if (aOnline != bOnline) return aOnline > bOnline;
+            return a["username"].toString().compare(b["username"].toString(), Qt::CaseInsensitive) < 0;
+        });
+        
         // Update header count
         QLabel* header = m_rightPanelWidget->findChild<QLabel*>("friendsHeader");
-        if (header) header->setText(QString("FRIENDS (%1 ONLINE)").arg(friends.size()));
+        if (header) header->setText(QString("FRIENDS (%1 ONLINE)").arg(onlineCount));
         
         // Store friends count for profile card
-        m_userData["friends_count"] = friends.size();
+        m_userData["friends_count"] = friendsList.size();
         
-        for (const QJsonValue& v : friends) {
-            QJsonObject f = v.toObject();
+        for (const QJsonObject& f : friendsList) {
             QWidget* item = new QWidget();
             item->setFixedHeight(50);
             QHBoxLayout* lay = new QHBoxLayout(item);
@@ -2617,12 +2649,26 @@ void MainWindow::refreshFriendsList() {
             pix.fill(Qt::transparent);
             QPainter p(&pix);
             p.setRenderHint(QPainter::Antialiasing);
-            p.setBrush(QColor("#2C3545"));
-            p.setPen(Qt::NoPen);
-            p.drawEllipse(0, 0, 40, 40);
-            p.setPen(Qt::white);
-            p.setFont(QFont("Segoe UI", 12, QFont::Bold));
-            p.drawText(pix.rect(), Qt::AlignCenter, f["username"].toString().left(1).toUpper());
+            
+            QString avUrl = f["avatar_url"].toString();
+            if (!avUrl.isEmpty()) {
+                QPixmap original;
+                original.loadFromData(QByteArray::fromBase64(avUrl.toUtf8()));
+                if (!original.isNull()) {
+                    QPainterPath path;
+                    path.addEllipse(0, 0, 40, 40);
+                    p.setClipPath(path);
+                    p.drawPixmap(0, 0, 40, 40, original.scaled(40, 40, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+                    p.setClipping(false);
+                }
+            } else {
+                p.setBrush(QColor("#2C3545"));
+                p.setPen(Qt::NoPen);
+                p.drawEllipse(0, 0, 40, 40);
+                p.setPen(Qt::white);
+                p.setFont(QFont("Segoe UI", 12, QFont::Bold));
+                p.drawText(pix.rect(), Qt::AlignCenter, f["username"].toString().left(1).toUpper());
+            }
             p.end();
             av->setPixmap(pix);
             lay->addWidget(av);
@@ -2650,14 +2696,7 @@ void MainWindow::refreshFriendsList() {
 void MainWindow::showBlurOverlay() {
     if (!m_blurOverlay) {
         m_blurOverlay = new QWidget(this);
-        m_blurOverlay->setStyleSheet("background-color: rgba(10, 12, 16, 180);"); // Cinematic dark tint
-    }
-    
-    // Apply blur to the central widget
-    if (centralWidget() && !m_blurEffect) {
-        m_blurEffect = new QGraphicsBlurEffect(this);
-        m_blurEffect->setBlurRadius(12); // Smooth Gaussian blur
-        centralWidget()->setGraphicsEffect(m_blurEffect);
+        m_blurOverlay->setStyleSheet("background-color: rgba(10, 12, 16, 200);"); // Cinematic dark tint
     }
     
     m_blurOverlay->resize(this->size());
@@ -2669,11 +2708,6 @@ void MainWindow::hideBlurOverlay() {
     if (m_blurOverlay) {
         m_blurOverlay->hide();
     }
-    if (centralWidget()) {
-        centralWidget()->setGraphicsEffect(nullptr);
-    }
-    // Note: setGraphicsEffect(nullptr) deletes the old effect, so no need to delete m_blurEffect
-    m_blurEffect = nullptr;
 }
 
 void MainWindow::onNotificationClicked() {
@@ -2714,8 +2748,13 @@ void MainWindow::fetchNotificationCount() {
         QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
         if (doc.isArray()) {
             int count = doc.array().size();
-            if (m_titleBar) {
-                m_titleBar->updateBadge(count);
+            if (m_mainNotifBadge) {
+                if (count > 0) {
+                    m_mainNotifBadge->setText(count > 9 ? "9+" : QString::number(count));
+                    m_mainNotifBadge->show();
+                } else {
+                    m_mainNotifBadge->hide();
+                }
             }
         }
     });

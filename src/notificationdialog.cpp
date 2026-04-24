@@ -123,6 +123,7 @@ void NotificationDialog::setupUI() {
     // Empty state label (hidden by default)
     m_emptyLabel = new QLabel("No pending requests");
     m_emptyLabel->setAlignment(Qt::AlignCenter);
+    m_emptyLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     m_emptyLabel->setStyleSheet(
         "color: rgba(255, 255, 255, 0.3); font-size: 13px;"
         "font-family: 'Segoe UI'; background: transparent; border: none;"

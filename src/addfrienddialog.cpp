@@ -48,10 +48,28 @@ void AddFriendDialog::setupUI() {
     layout->setContentsMargins(24, 32, 24, 32);
     layout->setSpacing(20);
     
-    // Header Stack
-    QHBoxLayout* headerLayout = new QHBoxLayout();
-    headerLayout->setContentsMargins(0, 0, 0, 0);
-    headerLayout->setSpacing(16);
+    // Top Row for Close Button
+    QHBoxLayout* topRow = new QHBoxLayout();
+    topRow->setContentsMargins(0, 0, 0, 0);
+    topRow->addStretch();
+    
+    m_closeBtn = new QPushButton("✕");
+    m_closeBtn->setFont(QFont("Segoe UI", 16, QFont::Bold));
+    m_closeBtn->setFixedSize(32, 32);
+    m_closeBtn->setCursor(Qt::PointingHandCursor);
+    m_closeBtn->setStyleSheet(
+        "QPushButton { color: rgba(255,255,255,0.5); background: transparent; border: none; border-radius: 16px; }"
+        "QPushButton:hover { color: white; background: rgba(255,255,255,0.1); }"
+    );
+    connect(m_closeBtn, &QPushButton::clicked, this, &AddFriendDialog::onClose);
+    topRow->addWidget(m_closeBtn, 0, Qt::AlignTop);
+    
+    layout->addLayout(topRow);
+
+    // Centered Icon and Titles
+    QVBoxLayout* centerLayout = new QVBoxLayout();
+    centerLayout->setAlignment(Qt::AlignHCenter);
+    centerLayout->setSpacing(12);
     
     QWidget* iconBox = new QWidget();
     iconBox->setFixedSize(48, 48);
@@ -68,33 +86,26 @@ void AddFriendDialog::setupUI() {
     iconLabel->setStyleSheet("background: transparent; border: none;");
     iconLabel->setAlignment(Qt::AlignCenter);
     iconBoxLayout->addWidget(iconLabel);
-    headerLayout->addWidget(iconBox);
+    
+    centerLayout->addWidget(iconBox, 0, Qt::AlignHCenter);
     
     QVBoxLayout* titleLayout = new QVBoxLayout();
     titleLayout->setSpacing(2);
+    titleLayout->setAlignment(Qt::AlignHCenter);
+    
     QLabel* titleLabel = new QLabel("ADD NEW CONTACT");
+    titleLabel->setAlignment(Qt::AlignCenter);
     titleLabel->setStyleSheet("color: white; font-size: 16px; font-weight: 900; letter-spacing: 1.6px; background: transparent; border: none;");
+    
     QLabel* subtitleLabel = new QLabel("SEARCH BY SECURITY HANDLE");
+    subtitleLabel->setAlignment(Qt::AlignCenter);
     subtitleLabel->setStyleSheet("color: #7A7A7A; font-size: 10px; font-weight: bold; letter-spacing: 1px; background: transparent; border: none;");
+    
     titleLayout->addWidget(titleLabel);
     titleLayout->addWidget(subtitleLabel);
-    titleLayout->addStretch();
-    headerLayout->addLayout(titleLayout);
-    headerLayout->addStretch();
     
-    // Close Button
-    m_closeBtn = new QPushButton("✕");
-    m_closeBtn->setFont(QFont("Segoe UI", 16, QFont::Bold));
-    m_closeBtn->setFixedSize(32, 32);
-    m_closeBtn->setCursor(Qt::PointingHandCursor);
-    m_closeBtn->setStyleSheet(
-        "QPushButton { color: rgba(255,255,255,0.5); background: transparent; border: none; border-radius: 16px; }"
-        "QPushButton:hover { color: white; background: rgba(255,255,255,0.1); }"
-    );
-    connect(m_closeBtn, &QPushButton::clicked, this, &AddFriendDialog::onClose);
-    headerLayout->addWidget(m_closeBtn, 0, Qt::AlignTop);
-    
-    layout->addLayout(headerLayout);
+    centerLayout->addLayout(titleLayout);
+    layout->addLayout(centerLayout);
     
     layout->addSpacing(10);
     

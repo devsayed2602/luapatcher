@@ -1,14 +1,20 @@
 #include "profilecard.h"
 #include "utils/colors.h"
+#include "config.h"
 #include <QApplication>
 #include <QScreen>
 #include <QFrame>
 #include <QGraphicsOpacityEffect>
 #include <QMouseEvent>
+#include <QFileDialog>
+#include <QBuffer>
+#include <QNetworkRequest>
+#include <QNetworkReply>
+#include <QJsonDocument>
 
-ProfileCard::ProfileCard(const QString& username, const QJsonObject& userData, QWidget* parent)
+ProfileCard::ProfileCard(const QString& username, const QJsonObject& userData, QNetworkAccessManager* netMgr, QWidget* parent)
     : QDialog(parent, Qt::Popup | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint), 
-      m_username(username), m_userData(userData)
+      m_username(username), m_userData(userData), m_netMgr(netMgr)
 {
     setAttribute(Qt::WA_TranslucentBackground);
     setAttribute(Qt::WA_DeleteOnClose);
@@ -41,9 +47,21 @@ void ProfileCard::setupUI() {
     avatarWrapper->setFixedSize(avSize + 10, avSize + 10);
     avatarWrapper->setStyleSheet("background: transparent;");
     
-    QLabel* avatarLabel = new QLabel(avatarWrapper);
-    avatarLabel->setFixedSize(avSize, avSize);
-    avatarLabel->move(5, 5);
+    m_avatarLabel = new QLabel(avatarWrapper);
+    m_avatarLabel->setFixedSize(avSize, avSize);
+    m_avatarLabel->move(5, 5);
+    
+    // Add clickable overlay
+    QPushButton* avatarBtn = new QPushButton(avatarWrapper);
+    avatarBtn->setFixedSize(avSize, avSize);
+    avatarBtn->move(5, 5);
+    avatarBtn->setCursor(Qt::PointingHandCursor);
+    avatarBtn->setStyleSheet(
+        "QPushButton { background: transparent; border: none; border-radius: 75px; }"
+        "QPushButton:hover { background: rgba(0, 0, 0, 0.4); border: none; }"
+    );
+    avatarBtn->setToolTip("Change Avatar");
+    connect(avatarBtn, &QPushButton::clicked, this, &ProfileCard::onChangeAvatar);
     
     // Draw the avatar with the thick white border and star badge
     QPixmap avatarPix(avSize, avSize);
@@ -77,7 +95,7 @@ void ProfileCard::setupUI() {
         p.drawText(QRect(8, 8, avSize - 16, avSize - 16), Qt::AlignCenter, m_username.left(1).toUpper());
     }
     p.end();
-    avatarLabel->setPixmap(avatarPix);
+    m_avatarLabel->setPixmap(avatarPix);
     
     // Star Badge (Black circle with white star)
     QLabel* badge = new QLabel(avatarWrapper);
@@ -159,4 +177,58 @@ void ProfileCard::paintEvent(QPaintEvent*) {
 
 void ProfileCard::showEvent(QShowEvent* event) {
     QDialog::showEvent(event);
+}
+
+void ProfileCard::onChangeAvatar() {
+    if (!m_netMgr) return;
+    
+    QString filePath = QFileDialog::getOpenFileName(this, "Select Avatar", "", "Images (*.png *.jpg *.jpeg)");
+    if (filePath.isEmpty()) return;
+    
+    QPixmap pix(filePath);
+    if (pix.isNull()) return;
+    
+    // Resize for avatar usage and encode to base64
+    QPixmap scaled = pix.scaled(256, 256, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+    QByteArray ba;
+    QBuffer buffer(&ba);
+    buffer.open(QIODevice::WriteOnly);
+    scaled.save(&buffer, "PNG");
+    QString base64 = QString(ba.toBase64());
+    
+    // Update local data
+    m_userData["avatar_url"] = base64;
+    
+    // Re-render UI using the same logic to update the avatar label
+    int avSize = 150;
+    QPixmap avatarPix(avSize, avSize);
+    avatarPix.fill(Qt::transparent);
+    QPainter p(&avatarPix);
+    p.setRenderHint(QPainter::Antialiasing);
+    p.setBrush(Qt::black);
+    p.setPen(QPen(QColor("#8FABD4"), 4));
+    p.drawEllipse(4, 4, avSize - 8, avSize - 8);
+    
+    QPainterPath path;
+    path.addEllipse(8, 8, avSize - 16, avSize - 16);
+    p.setClipPath(path);
+    p.drawPixmap(8, 8, avSize - 16, avSize - 16, scaled.scaled(avSize, avSize, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+    p.setClipping(false);
+    p.end();
+    
+    if (m_avatarLabel) {
+        m_avatarLabel->setPixmap(avatarPix);
+    }
+    
+    // Send to backend
+    QJsonObject payload;
+    payload["avatar_url"] = base64;
+    
+    QString url = QString("%1/api/user/profile?username=%2").arg(Config::WEBSERVER_BASE_URL).arg(m_username);
+    QNetworkRequest request{QUrl(url)};
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    
+    QJsonDocument doc(payload);
+    QNetworkReply* reply = m_netMgr->post(request, doc.toJson());
+    connect(reply, &QNetworkReply::finished, reply, &QNetworkReply::deleteLater);
 }

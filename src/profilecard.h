@@ -13,21 +13,29 @@
 #include <QGraphicsDropShadowEffect>
 #include <QJsonObject>
 
+#include <QNetworkAccessManager>
+#include <QPushButton>
+
 class ProfileCard : public QDialog {
     Q_OBJECT
 public:
-    explicit ProfileCard(const QString& username, const QJsonObject& userData, QWidget* parent = nullptr);
+    explicit ProfileCard(const QString& username, const QJsonObject& userData, QNetworkAccessManager* netMgr, QWidget* parent = nullptr);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
     void showEvent(QShowEvent* event) override;
+
+private slots:
+    void onChangeAvatar();
 
 private:
     void setupUI();
     
     QString m_username;
     QJsonObject m_userData;
+    QNetworkAccessManager* m_netMgr;
     QWidget* m_container;
+    QLabel* m_avatarLabel;
 };
 
 #endif // PROFILECARD_H

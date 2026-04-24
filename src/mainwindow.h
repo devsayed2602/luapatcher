@@ -152,6 +152,9 @@ private:
     QWidget* m_blurOverlay = nullptr;
     QGraphicsBlurEffect* m_blurEffect = nullptr;
     
+    QPushButton* m_mainNotifBtn = nullptr;
+    QLabel* m_mainNotifBadge = nullptr;
+    
     // Main Content
     CustomTitleBar* m_titleBar;
     QWidget* m_mainScrollContainer;

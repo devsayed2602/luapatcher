@@ -30,7 +30,8 @@ public:
         Group,
         PersonAdd,
         Logout,
-        Steam
+        Steam,
+        Notifications
     };
 
     static void draw(QPainter& p, const QRectF& rect, const QColor& color, Icon icon) {
@@ -174,6 +175,21 @@ public:
             p.drawPath(bolt);
             break;
         }
+        case Notifications: {
+            QPainterPath bell;
+            bell.moveTo(12, 22);
+            bell.arcTo(10, 20, 4, 4, 0, -180);
+            p.drawPath(bell);
+            p.drawPath(QPainterPath());
+            QPainterPath body;
+            body.moveTo(18, 16); body.lineTo(18, 11);
+            body.quadTo(18, 7.9, 13.5, 4.6); body.lineTo(13.5, 4);
+            body.quadTo(13.5, 2.5, 12, 2.5); body.quadTo(10.5, 2.5, 10.5, 4); body.lineTo(10.5, 4.6);
+            body.quadTo(6, 7.9, 6, 11); body.lineTo(6, 16);
+            body.lineTo(4, 18); body.lineTo(4, 19); body.lineTo(20, 19); body.lineTo(20, 18); body.closeSubpath();
+            p.drawPath(body);
+            break;
+        }
         case Build: {
             // Wrench
             QPainterPath wrench;
@@ -304,6 +320,11 @@ private:
                 <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M21 12a9 9 0 11-1.35-4.73l-2.45 2.45" stroke="#8FABD4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                     <path d="M21 4v5.5h-5.5" stroke="#8FABD4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            )SVG";
+            case Notifications: return R"SVG(
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 22C13.1 22 14 21.1 14 20H10C10 21.1 10.9 22 12 22ZM18 16V11C18 7.9 16.3 5.3 13.5 4.6V4C13.5 3.2 12.8 2.5 12 2.5C11.2 2.5 10.5 3.2 10.5 4V4.6C7.7 5.3 6 7.9 6 11V16L4 18V19H20V18L18 16Z" fill="#8FABD4"/>
                 </svg>
             )SVG";
             default: return R"SVG(
