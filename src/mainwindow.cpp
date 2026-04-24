@@ -417,6 +417,14 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
             QTimer::singleShot(50, this, [this]() {
                 showBlurOverlay();
                 ProfileCard* card = new ProfileCard(m_username, m_userData, m_networkManager, this);
+                
+                connect(card, &ProfileCard::avatarUpdated, this, [this](const QString& b64) {
+                    m_userData["avatar_url"] = b64;
+                    QSettings settings("LuaPatcher", "Client");
+                    settings.setValue("userData", QJsonDocument(m_userData).toJson());
+                    updateSidebarAvatar();
+                });
+                
                 card->move(geometry().center() - QPoint(card->width() / 2, card->height() / 2));
                 card->exec();
                 hideBlurOverlay();
@@ -1176,10 +1184,10 @@ void MainWindow::initUI() {
 
     ap.end();
 
-    QLabel* avatarLabel = new QLabel(avatarContainer);
-    avatarLabel->setStyleSheet("background: transparent; border: none; margin: 0; padding: 0;");
-    avatarLabel->setPixmap(avatarPix);
-    avatarLabel->setGeometry(0, 0, avSz, avSz);
+    m_sidebarAvatarLabel = new QLabel(avatarContainer);
+    m_sidebarAvatarLabel->setStyleSheet("background: transparent; border: none; margin: 0; padding: 0;");
+    m_sidebarAvatarLabel->setPixmap(avatarPix);
+    m_sidebarAvatarLabel->setGeometry(0, 0, avSz, avSz);
     avatarContainer->setAttribute(Qt::WA_TransparentForMouseEvents);
     capsuleLayout->addWidget(avatarContainer);
 
@@ -2568,6 +2576,7 @@ void MainWindow::setInitialUser(const QString& username, const QJsonObject& data
             fetchNotificationCount(); // Fetch immediately
         }
     }
+    updateSidebarAvatar();
 }
 
 void MainWindow::sendHeartbeat() {
@@ -2794,5 +2803,56 @@ void MainWindow::rearrangeGameGrid(bool force) {
         m_gameCards[i]->setFixedSize(flexCardWidth, flexCardHeight);
         m_gridLayout->addWidget(m_gameCards[i], i / cols, i % cols);
     }
+}
+
+void MainWindow::updateSidebarAvatar() {
+    if (!m_sidebarAvatarLabel) return;
+    
+    int avSz = 40;
+    QPixmap avatarPix(avSz, avSz);
+    avatarPix.fill(Qt::transparent);
+    QPainter ap(&avatarPix);
+    ap.setRenderHint(QPainter::Antialiasing);
+
+    // Soft ring border
+    ap.setPen(QPen(QColor(143, 171, 212, 80), 1.5));
+    ap.setBrush(Qt::NoBrush);
+    ap.drawEllipse(QRectF(1, 1, avSz - 2, avSz - 2));
+
+    QString avUrl = m_userData["avatar_url"].toString();
+    if (!avUrl.isEmpty()) {
+        QPixmap original;
+        original.loadFromData(QByteArray::fromBase64(avUrl.toUtf8()));
+        if (!original.isNull()) {
+            QPainterPath path;
+            path.addEllipse(3, 3, avSz - 6, avSz - 6);
+            ap.setClipPath(path);
+            ap.drawPixmap(3, 3, avSz - 6, avSz - 6, original.scaled(avSz - 6, avSz - 6, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+            ap.setClipping(false);
+        }
+    } else {
+        // Inner filled circle (avatar background)
+        ap.setPen(Qt::NoPen);
+        ap.setBrush(QColor("#4A6FA5"));
+        ap.drawEllipse(QRectF(3, 3, avSz - 6, avSz - 6));
+
+        // Letter initial
+        ap.setPen(QColor(255, 255, 255, 240));
+        ap.setFont(QFont("Segoe UI", 14, QFont::Bold));
+        ap.drawText(QRectF(3, 3, avSz - 6, avSz - 6), Qt::AlignCenter, m_username.isEmpty() ? "U" : m_username.left(1).toUpper());
+    }
+
+    // Green online dot (bottom-right)
+    int dotSz = 10;
+    int dotX = avSz - dotSz - 1;
+    int dotY = avSz - dotSz - 1;
+    ap.setBrush(QColor(15, 20, 30));
+    ap.setPen(Qt::NoPen);
+    ap.drawEllipse(dotX - 2, dotY - 2, dotSz + 4, dotSz + 4);
+    ap.setBrush(QColor("#2ECC71"));
+    ap.drawEllipse(dotX, dotY, dotSz, dotSz);
+
+    ap.end();
+    m_sidebarAvatarLabel->setPixmap(avatarPix);
 }
 

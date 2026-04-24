@@ -247,4 +247,6 @@ void ProfileCard::onChangeAvatar() {
     QJsonDocument doc(payload);
     QNetworkReply* reply = m_netMgr->post(request, doc.toJson());
     connect(reply, &QNetworkReply::finished, reply, &QNetworkReply::deleteLater);
+    
+    emit avatarUpdated(base64);
 }

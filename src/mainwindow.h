@@ -81,6 +81,7 @@ private slots:
     void onSyncDone(QList<GameInfo> games);
     void onSyncError(QString error);
     void refreshFriendsList();
+    void updateSidebarAvatar();
     void sendHeartbeat();
     void onNotificationClicked();
     void fetchNotificationCount();

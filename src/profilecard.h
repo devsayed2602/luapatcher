@@ -25,6 +25,9 @@ protected:
     void paintEvent(QPaintEvent* event) override;
     void showEvent(QShowEvent* event) override;
 
+signals:
+    void avatarUpdated(const QString& newAvatarUrl);
+
 private slots:
     void onChangeAvatar();
 
