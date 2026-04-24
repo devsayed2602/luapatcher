@@ -13,7 +13,7 @@
 #include <QJsonDocument>
 
 ProfileCard::ProfileCard(const QString& username, const QJsonObject& userData, QNetworkAccessManager* netMgr, QWidget* parent)
-    : QDialog(parent, Qt::Popup | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint), 
+    : QDialog(parent, Qt::Dialog | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint), 
       m_username(username), m_userData(userData), m_netMgr(netMgr)
 {
     setAttribute(Qt::WA_TranslucentBackground);
@@ -38,8 +38,24 @@ void ProfileCard::setupUI() {
     );
     
     QVBoxLayout* layout = new QVBoxLayout(m_container);
-    layout->setContentsMargins(30, 40, 30, 30);
+    layout->setContentsMargins(30, 20, 30, 30);
     layout->setSpacing(0);
+    
+    // Close button row
+    QHBoxLayout* topRow = new QHBoxLayout();
+    topRow->setContentsMargins(0, 0, 0, 0);
+    topRow->addStretch();
+    QPushButton* closeBtn = new QPushButton("✕");
+    closeBtn->setFont(QFont("Segoe UI", 14, QFont::Bold));
+    closeBtn->setFixedSize(30, 30);
+    closeBtn->setCursor(Qt::PointingHandCursor);
+    closeBtn->setStyleSheet(
+        "QPushButton { color: rgba(255,255,255,0.4); background: transparent; border: none; border-radius: 15px; }"
+        "QPushButton:hover { color: white; background: rgba(255,255,255,0.1); }"
+    );
+    connect(closeBtn, &QPushButton::clicked, this, &ProfileCard::accept);
+    topRow->addWidget(closeBtn);
+    layout->addLayout(topRow);
     
     // Avatar Section
     int avSize = 180;
