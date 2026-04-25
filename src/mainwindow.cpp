@@ -411,14 +411,27 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
             QString appId = obj->property("gameAppId").toString();
             for (const auto& g : m_supportedGames) {
                 if (g.id == appId) {
+                    // Build game data without creating a temporary GameCard
+                    // (a stack-allocated card would be destroyed when this scope exits,
+                    //  leaving m_selectedCard as a dangling pointer → crash on Back)
                     QMap<QString, QString> cd;
                     cd["name"] = m_nameCache.value(g.id, g.id);
                     cd["appid"] = g.id;
                     cd["supported"] = "true";
                     cd["hasFix"] = g.hasFix ? "true" : "false";
-                    GameCard tempCard(this);
-                    tempCard.setGameData(cd);
-                    onCardClicked(&tempCard);
+                    
+                    // Deselect any previously selected card safely
+                    if (m_selectedCard) m_selectedCard->setSelected(false);
+                    m_selectedCard = nullptr; // No real card for hero slides
+                    m_selectedGame = cd;
+                    
+                    bool isSupported = true;
+                    bool hasFix = g.hasFix;
+                    m_gameDetailsPage->loadGame(cd["appid"], cd["name"], isSupported, hasFix);
+                    m_stack->setCurrentIndex(3);
+                    
+                    m_targetGlowColor = Colors::toQColor(Colors::PRIMARY);
+                    m_glowTimer->start(16);
                     return true;
                 }
             }
