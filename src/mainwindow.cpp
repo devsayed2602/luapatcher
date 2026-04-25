@@ -61,6 +61,7 @@
 #include <QMouseEvent>
 #include <QScreen>
 #include <QGuiApplication>
+#include <QNetworkDiskCache>
 
 // ==========================================
 // HeroBannerWidget Implementation
@@ -224,6 +225,15 @@ MainWindow::MainWindow(QWidget* parent)
     
     // Initialize network manager BEFORE UI is built
     m_networkManager = new QNetworkAccessManager(this);
+    
+    // Enable persistent disk cache for images (50 MB)
+    QNetworkDiskCache* diskCache = new QNetworkDiskCache(this);
+    QString cachePath = QDir(Paths::getLocalCacheDir()).filePath("image_cache");
+    QDir().mkpath(cachePath);
+    diskCache->setCacheDirectory(cachePath);
+    diskCache->setMaximumCacheSize(50 * 1024 * 1024); // 50 MB
+    m_networkManager->setCache(diskCache);
+    
     connect(m_networkManager, &QNetworkAccessManager::finished,
             this, &MainWindow::onSearchFinished);
             
@@ -1034,7 +1044,17 @@ void MainWindow::initUI() {
     
     m_mainScrollArea->setWidget(m_mainScrollContainer);
     connect(m_mainScrollArea->verticalScrollBar(), &QScrollBar::valueChanged,
-            this, &MainWindow::loadVisibleThumbnails);
+            this, [this]() {
+        // Debounce scroll-triggered thumbnail loads to avoid flooding
+        if (!m_thumbDebounceTimer) {
+            m_thumbDebounceTimer = new QTimer(this);
+            m_thumbDebounceTimer->setSingleShot(true);
+            m_thumbDebounceTimer->setInterval(100);
+            connect(m_thumbDebounceTimer, &QTimer::timeout,
+                    this, &MainWindow::loadVisibleThumbnails);
+        }
+        m_thumbDebounceTimer->start();
+    });
     
     m_stack->addWidget(m_mainScrollArea); // index 1
     
@@ -1302,6 +1322,10 @@ void MainWindow::initUI() {
 void MainWindow::clearGameCards() {
     m_selectedCard = nullptr;
     
+    // Reset pending thumbnail queue
+    m_pendingThumbnailIds.clear();
+    m_activeThumbnailCount = 0;
+    
     // Clear trending layout
     while (QLayoutItem* item = m_trendingLayout->takeAt(0)) {
         if (QWidget* widget = item->widget()) {
@@ -1354,18 +1378,18 @@ void MainWindow::displayRandomGames() {
             for (const auto& g : m_supportedGames) {
                 if (g.id == tid) { carouselGames.append(g); break; }
             }
-            if (carouselGames.size() >= 10) break; // Fetch up to 10 candidates
+            if (carouselGames.size() >= 5) break; // Fetch up to 5 candidates to avoid burst
         }
     }
     
     // Fallback: pick random supported games
-    if (carouselGames.size() < 10 && !m_supportedGames.isEmpty()) {
+    if (carouselGames.size() < 5 && !m_supportedGames.isEmpty()) {
         QList<GameInfo> randGames = m_supportedGames;
         auto *rng = QRandomGenerator::global();
         for (int i = randGames.size() - 1; i > 0; --i) {
             randGames.swapItemsAt(i, rng->bounded(i + 1));
         }
-        for (int i = 0; i < qMin(10 - carouselGames.size(), (int)randGames.size()); ++i) {
+        for (int i = 0; i < qMin(5 - carouselGames.size(), (int)randGames.size()); ++i) {
             carouselGames.append(randGames[i]);
         }
     }
@@ -1462,6 +1486,7 @@ void MainWindow::displayRandomGames() {
         QNetworkRequest req{QUrl(heroUrl)};
         req.setHeader(QNetworkRequest::UserAgentHeader, "SteamLuaPatcher/2.0");
         req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+        req.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::PreferCache);
         QNetworkReply* heroReply = m_networkManager->get(req);
         
         QPointer<HeroBannerWidget> safeImgLabel(imgLabel);
@@ -1482,6 +1507,7 @@ void MainWindow::displayRandomGames() {
                 QNetworkRequest fallbackReq{QUrl(fallbackUrl)};
                 fallbackReq.setHeader(QNetworkRequest::UserAgentHeader, "SteamLuaPatcher/2.0");
                 fallbackReq.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+                fallbackReq.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::PreferCache);
                 QNetworkReply* fallbackReply = nm->get(fallbackReq);
                 connect(fallbackReply, &QNetworkReply::finished, this, [this, fallbackReply, safeImgLabel, safeSlide]() {
                     fallbackReply->deleteLater();
@@ -1969,14 +1995,8 @@ void MainWindow::onSearchFinished(QNetworkReply* reply) {
             
             if (m_thumbnailCache.contains(id)) {
                 card->setThumbnail(m_thumbnailCache[id]);
-            } else if (!m_activeThumbnailDownloads.contains(id)) {
-                m_activeThumbnailDownloads.insert(id);
-                QString thumbUrl = QString("https://cdn.akamai.steamstatic.com/steam/apps/%1/library_600x900_2x.jpg").arg(id);
-                QNetworkReply* tr = m_networkManager->get(QNetworkRequest{QUrl(thumbUrl)});
-                tr->setProperty("appid", id);
-                connect(tr, &QNetworkReply::finished, this, [this, tr]() {
-                    onThumbnailDownloaded(tr);
-                });
+            } else if (!m_activeThumbnailDownloads.contains(id) && !m_pendingThumbnailIds.contains(id)) {
+                m_pendingThumbnailIds.append(id);
             }
         }
     }
@@ -1984,6 +2004,9 @@ void MainWindow::onSearchFinished(QNetworkReply* reply) {
     if (changed) {
         rearrangeGameGrid(true);
     }
+    
+    // Start draining the throttled thumbnail queue
+    QTimer::singleShot(50, this, &MainWindow::loadVisibleThumbnails);
     
     m_statusLabel->setText(m_gameCards.isEmpty()
         ? "No results found"
@@ -2416,6 +2439,7 @@ void MainWindow::loadVisibleThumbnails() {
     if (!m_mainScrollArea || !m_networkManager) return;
     QRect visibleRect = m_mainScrollArea->viewport()->rect();
     
+    // Collect IDs of visible cards that need thumbnails
     for (GameCard* card : m_gameCards) {
         // Map card position correctly to scroll viewport
         QPoint pos = card->mapTo(m_mainScrollArea->viewport(), QPoint(0,0));
@@ -2428,11 +2452,24 @@ void MainWindow::loadVisibleThumbnails() {
         if (appId.isEmpty() || card->hasThumbnail()) continue;
         if (m_thumbnailCache.contains(appId)) { card->setThumbnail(m_thumbnailCache[appId]); continue; }
         if (m_activeThumbnailDownloads.contains(appId)) continue;
+        if (m_pendingThumbnailIds.contains(appId)) continue;
+        
+        m_pendingThumbnailIds.append(appId);
+    }
+    
+    // Drain pending queue up to the concurrency limit
+    while (m_activeThumbnailCount < MAX_CONCURRENT_THUMBNAILS && !m_pendingThumbnailIds.isEmpty()) {
+        QString appId = m_pendingThumbnailIds.takeFirst();
+        if (m_activeThumbnailDownloads.contains(appId)) continue;
         
         m_activeThumbnailDownloads.insert(appId);
-        QString thumbUrl = QString("https://cdn.akamai.steamstatic.com/steam/apps/%1/library_600x900_2x.jpg").arg(appId);
+        m_activeThumbnailCount++;
+        
+        // Use the non-2x version (600x900) which is ~50% smaller in filesize
+        QString thumbUrl = QString("https://cdn.akamai.steamstatic.com/steam/apps/%1/library_600x900.jpg").arg(appId);
         QNetworkRequest req{QUrl(thumbUrl)};
         req.setAttribute(QNetworkRequest::Attribute(QNetworkRequest::User + 1), appId);
+        req.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::PreferCache);
         
         QNetworkReply* tr = m_networkManager->get(req);
         tr->setProperty("appid", appId);
@@ -2444,8 +2481,13 @@ void MainWindow::onThumbnailDownloaded(QNetworkReply* reply) {
     reply->deleteLater();
     QString appId = reply->property("appid").toString();
     m_activeThumbnailDownloads.remove(appId);
+    m_activeThumbnailCount = qMax(0, m_activeThumbnailCount - 1);
     
-    if (appId.isEmpty()) return;
+    if (appId.isEmpty()) {
+        // Drain the next request from the pending queue
+        loadVisibleThumbnails();
+        return;
+    }
     
     QPixmap pixmap;
     bool success = (reply->error() == QNetworkReply::NoError) && pixmap.loadFromData(reply->readAll());
@@ -2453,10 +2495,12 @@ void MainWindow::onThumbnailDownloaded(QNetworkReply* reply) {
     // Fallback logic for older games that don't have the new vertical Steam library asset
     if (!success) {
         QString originalUrl = reply->url().toString();
-        if (originalUrl.endsWith("library_600x900_2x.jpg")) {
+        if (originalUrl.contains("library_600x900")) {
             m_activeThumbnailDownloads.insert(appId);
+            m_activeThumbnailCount++;
             QString fallbackUrl = QString("https://cdn.akamai.steamstatic.com/steam/apps/%1/header.jpg").arg(appId);
             QNetworkRequest req{QUrl(fallbackUrl)};
+            req.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::PreferCache);
             QNetworkReply* tr = m_networkManager->get(req);
             tr->setProperty("appid", appId);
             connect(tr, &QNetworkReply::finished, this, [this, tr]() { onThumbnailDownloaded(tr); });
@@ -2466,6 +2510,8 @@ void MainWindow::onThumbnailDownloaded(QNetworkReply* reply) {
         // If even fallback fails, aggressively cache failure as a null pixmap
         // to prevent spamming the steam servers on every frame scroll
         m_thumbnailCache[appId] = QPixmap();
+        // Drain the next request from the pending queue
+        loadVisibleThumbnails();
         return;
     }
     
@@ -2477,6 +2523,9 @@ void MainWindow::onThumbnailDownloaded(QNetworkReply* reply) {
             // Don't break, multiple modes might show the same appID (e.g. search + library)
         }
     }
+    
+    // Drain the next request from the pending queue
+    loadVisibleThumbnails();
 }
 
 // ---- Persistent name cache ----

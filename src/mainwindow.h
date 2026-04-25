@@ -16,6 +16,7 @@
 #include <QJsonObject>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
+#include <QNetworkDiskCache>
 #include <QScrollArea>
 #include <QGridLayout>
 #include <QSet>
@@ -255,6 +256,10 @@ private:
     // Thumbnail cache
     QMap<QString, QPixmap> m_thumbnailCache;
     QSet<QString> m_activeThumbnailDownloads;
+    QTimer* m_thumbDebounceTimer = nullptr;
+    int m_activeThumbnailCount = 0;
+    static constexpr int MAX_CONCURRENT_THUMBNAILS = 6;
+    QStringList m_pendingThumbnailIds;
     
     // Trending games (from SteamSpy)
     QStringList m_trendingAppIds;

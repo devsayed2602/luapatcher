@@ -802,6 +802,7 @@ void GameDetailsPage::loadGame(const QString& appId, const QString& name, bool s
     QString heroUrl = QString("https://cdn.akamai.steamstatic.com/steam/apps/%1/library_hero.jpg").arg(appId);
     QNetworkRequest hReq{QUrl(heroUrl)};
     hReq.setHeader(QNetworkRequest::UserAgentHeader, "SteamLuaPatcher/2.0");
+    hReq.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::PreferCache);
     QNetworkReply* heroReply = m_networkManager->get(hReq);
     connect(heroReply, &QNetworkReply::finished, this, [this, heroReply, loadId]() {
         heroReply->deleteLater();
@@ -818,6 +819,7 @@ void GameDetailsPage::loadGame(const QString& appId, const QString& name, bool s
     QUrl url(QString("https://store.steampowered.com/api/appdetails?appids=%1").arg(appId));
     QNetworkRequest req(url);
     req.setHeader(QNetworkRequest::UserAgentHeader, "SteamLuaPatcher/2.0");
+    req.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::PreferCache);
     QNetworkReply* reply = m_networkManager->get(req);
     connect(reply, &QNetworkReply::finished, this, [this, reply, loadId](){
         if (m_currentLoadId == loadId) onDetailsReceived(reply);
@@ -1030,6 +1032,7 @@ void GameDetailsPage::populate(const QJsonObject& data) {
 
         QNetworkRequest imgReq{QUrl(url)};
         imgReq.setHeader(QNetworkRequest::UserAgentHeader, "SteamLuaPatcher/2.0");
+        imgReq.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::PreferCache);
         QNetworkReply* imgReply = m_networkManager->get(imgReq);
         QPointer<ScreenshotCard> safeCard(card);
         connect(imgReply, &QNetworkReply::finished, this, [imgReply, safeCard, loadId, this]() {
