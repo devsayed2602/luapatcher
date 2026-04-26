@@ -254,6 +254,7 @@ MainWindow::MainWindow(QWidget* parent)
     QTimer::singleShot(10, this, [this]() {
         startSync();
         fetchTrendingGames();
+        checkAppUpdate();
     });
 }
 
@@ -2790,7 +2791,9 @@ void MainWindow::onNotificationClicked() {
     
     showBlurOverlay();
     
-    NotificationDialog* dialog = new NotificationDialog(m_username, m_networkManager, this);
+    NotificationDialog* dialog = new NotificationDialog(m_username, m_networkManager, 
+                                                        m_hasUpdate, m_updateVersion, 
+                                                        m_updateMessage, m_updateUrl, this);
     connect(dialog, &NotificationDialog::requestHandled, this, [this]() {
         refreshFriendsList();
         fetchNotificationCount();
@@ -2824,8 +2827,9 @@ void MainWindow::fetchNotificationCount() {
         if (doc.isArray()) {
             int count = doc.array().size();
             if (m_mainNotifBadge) {
-                if (count > 0) {
-                    m_mainNotifBadge->setText(count > 9 ? "9+" : QString::number(count));
+                if (m_hasUpdate || count > 0) {
+                    int total = count + (m_hasUpdate ? 1 : 0);
+                    m_mainNotifBadge->setText(total > 9 ? "9+" : QString::number(total));
                     m_mainNotifBadge->show();
                 } else {
                     m_mainNotifBadge->hide();
@@ -2920,5 +2924,47 @@ void MainWindow::updateSidebarAvatar() {
 
     ap.end();
     m_sidebarAvatarLabel->setPixmap(avatarPix);
+}
+
+void MainWindow::checkAppUpdate() {
+    QString url = Config::WEBSERVER_BASE_URL + "/api/app/latest-release";
+    QNetworkRequest request{QUrl(url)};
+    request.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
+    
+    QNetworkReply* reply = m_networkManager->get(request);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        reply->deleteLater();
+        if (reply->error() != QNetworkReply::NoError) return;
+        
+        QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+        if (doc.isObject()) {
+            QJsonObject obj = doc.object();
+            QString latestVer = obj["version"].toString();
+            
+            // Simple version string comparison
+            if (!latestVer.isEmpty() && latestVer != Config::APP_VERSION) {
+                QStringList latestParts = latestVer.split('.');
+                QStringList currentParts = Config::APP_VERSION.split('.');
+                
+                bool isNewer = false;
+                for (int i = 0; i < qMin(latestParts.size(), currentParts.size()); ++i) {
+                    int l = latestParts[i].toInt();
+                    int c = currentParts[i].toInt();
+                    if (l > c) { isNewer = true; break; }
+                    if (l < c) { break; }
+                }
+                
+                if (isNewer) {
+                    m_hasUpdate = true;
+                    m_updateVersion = latestVer;
+                    m_updateMessage = obj["message"].toString();
+                    m_updateUrl = obj["url"].toString();
+                    
+                    // Refresh the notification badge now that we know there's an update
+                    fetchNotificationCount();
+                }
+            }
+        }
+    });
 }
 

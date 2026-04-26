@@ -12,9 +12,17 @@
 #include <QJsonArray>
 #include <QJsonObject>
 
-NotificationDialog::NotificationDialog(const QString& currentUsername, QNetworkAccessManager* netMgr, QWidget* parent)
+#include <QDesktopServices>
+#include <QUrl>
+
+NotificationDialog::NotificationDialog(const QString& currentUsername, QNetworkAccessManager* netMgr, 
+                                       bool hasUpdate, const QString& updateVersion, 
+                                       const QString& updateMessage, const QString& updateUrl, 
+                                       QWidget* parent)
     : QDialog(parent, Qt::FramelessWindowHint | Qt::Dialog),
-      m_currentUsername(currentUsername), m_netMgr(netMgr)
+      m_currentUsername(currentUsername), m_netMgr(netMgr),
+      m_hasUpdate(hasUpdate), m_updateVersion(updateVersion),
+      m_updateMessage(updateMessage), m_updateUrl(updateUrl)
 {
     setAttribute(Qt::WA_TranslucentBackground);
     setAttribute(Qt::WA_DeleteOnClose);
@@ -115,6 +123,11 @@ void NotificationDialog::setupUI() {
     m_requestsLayout = new QVBoxLayout(scrollContent);
     m_requestsLayout->setContentsMargins(0, 0, 0, 0);
     m_requestsLayout->setSpacing(10);
+    
+    if (m_hasUpdate) {
+        m_requestsLayout->addWidget(createUpdateCard());
+    }
+    
     m_requestsLayout->addStretch();
 
     m_scrollArea->setWidget(scrollContent);
@@ -133,6 +146,76 @@ void NotificationDialog::setupUI() {
     layout->addWidget(m_emptyLabel);
 
     mainLayout->addWidget(m_container);
+    
+    // Show empty message if nothing is available immediately
+    if (!m_hasUpdate && m_pendingCount == 0) {
+        m_emptyLabel->show();
+        m_scrollArea->hide();
+    }
+}
+
+QWidget* NotificationDialog::createUpdateCard() {
+    QWidget* card = new QWidget();
+    card->setFixedHeight(80);
+    card->setStyleSheet(
+        "QWidget {"
+        "  background: rgba(0, 230, 118, 0.1);" // Primary green tint
+        "  border-radius: 12px;"
+        "  border: 1px solid rgba(0, 230, 118, 0.3);"
+        "}"
+    );
+
+    QHBoxLayout* l = new QHBoxLayout(card);
+    l->setContentsMargins(16, 12, 16, 12);
+    l->setSpacing(16);
+
+    // Icon
+    QLabel* icon = new QLabel("↓");
+    icon->setFixedSize(44, 44);
+    icon->setStyleSheet("background: rgba(0, 230, 118, 0.2); border-radius: 22px; color: #00E676; font-size: 20px; font-weight: bold;");
+    icon->setAlignment(Qt::AlignCenter);
+    l->addWidget(icon);
+
+    // Info
+    QVBoxLayout* infoLayout = new QVBoxLayout();
+    infoLayout->setSpacing(4);
+    infoLayout->setAlignment(Qt::AlignVCenter);
+
+    QLabel* titleLabel = new QLabel(QString("New Release Available (%1)").arg(m_updateVersion));
+    titleLabel->setStyleSheet("color: white; font-size: 14px; font-weight: bold; background: transparent; border: none;");
+    infoLayout->addWidget(titleLabel);
+
+    QLabel* msgLabel = new QLabel(m_updateMessage);
+    msgLabel->setStyleSheet("color: rgba(255, 255, 255, 160); font-size: 12px; background: transparent; border: none;");
+    msgLabel->setWordWrap(true);
+    infoLayout->addWidget(msgLabel);
+
+    l->addLayout(infoLayout);
+    l->addStretch();
+
+    // Download Button
+    QPushButton* dlBtn = new QPushButton("DOWNLOAD");
+    dlBtn->setFixedSize(100, 32);
+    dlBtn->setCursor(Qt::PointingHandCursor);
+    dlBtn->setStyleSheet(
+        "QPushButton {"
+        "  background: #00E676;"
+        "  color: black;"
+        "  font-weight: 800;"
+        "  font-size: 12px;"
+        "  border-radius: 8px;"
+        "  border: none;"
+        "}"
+        "QPushButton:hover {"
+        "  background: #00C853;"
+        "}"
+    );
+    connect(dlBtn, &QPushButton::clicked, this, [this]() {
+        QDesktopServices::openUrl(QUrl(m_updateUrl));
+    });
+    l->addWidget(dlBtn);
+
+    return card;
 }
 
 QWidget* NotificationDialog::createRequestCard(const QString& username) {
@@ -349,7 +432,11 @@ void NotificationDialog::rejectRequest(const QString& username, QPointer<QWidget
 }
 
 void NotificationDialog::updateCountLabel() {
-    m_countLabel->setText(QString("FRIEND REQUESTS (%1)").arg(m_pendingCount));
+    if (m_hasUpdate) {
+        m_countLabel->setText(QString("NOTIFICATIONS (%1)").arg(m_pendingCount + 1));
+    } else {
+        m_countLabel->setText(QString("FRIEND REQUESTS (%1)").arg(m_pendingCount));
+    }
 }
 
 void NotificationDialog::paintEvent(QPaintEvent* event) {

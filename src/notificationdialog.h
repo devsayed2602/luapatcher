@@ -14,7 +14,10 @@
 class NotificationDialog : public QDialog {
     Q_OBJECT
 public:
-    explicit NotificationDialog(const QString& currentUsername, QNetworkAccessManager* netMgr, QWidget* parent = nullptr);
+    explicit NotificationDialog(const QString& currentUsername, QNetworkAccessManager* netMgr, 
+                                bool hasUpdate = false, const QString& updateVersion = "", 
+                                const QString& updateMessage = "", const QString& updateUrl = "", 
+                                QWidget* parent = nullptr);
 
 signals:
     void requestHandled(); // Emitted when a request is accepted/rejected so MainWindow can refresh badge + friends list
@@ -29,6 +32,7 @@ private slots:
 private:
     void setupUI();
     void fetchPendingRequests();
+    QWidget* createUpdateCard();
     QWidget* createRequestCard(const QString& username);
     void acceptRequest(const QString& username, QPointer<QWidget> card);
     void rejectRequest(const QString& username, QPointer<QWidget> card);
@@ -36,6 +40,11 @@ private:
 
     QString m_currentUsername;
     QNetworkAccessManager* m_netMgr;
+    
+    bool m_hasUpdate;
+    QString m_updateVersion;
+    QString m_updateMessage;
+    QString m_updateUrl;
     
     QWidget* m_container;
     QScrollArea* m_scrollArea;

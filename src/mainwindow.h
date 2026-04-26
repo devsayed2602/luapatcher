@@ -87,6 +87,7 @@ private slots:
     void sendHeartbeat();
     void onNotificationClicked();
     void fetchNotificationCount();
+    void checkAppUpdate();
     void onSearchChanged(const QString& text);
     void doSearch();
     void onSearchFinished(QNetworkReply* reply);
@@ -263,6 +264,12 @@ private:
     
     // Trending games (from SteamSpy)
     QStringList m_trendingAppIds;
+    
+    // Update data
+    bool m_hasUpdate = false;
+    QString m_updateVersion;
+    QString m_updateMessage;
+    QString m_updateUrl;
     
     // User System Data
     QJsonObject m_userData;
