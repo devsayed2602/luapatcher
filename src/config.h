@@ -7,7 +7,7 @@
 #include <QFileInfo>
 
 namespace Config {
-    const QString APP_VERSION = "1.3.6";
+    const QString APP_VERSION = "1.4.5";
     const QString WEBSERVER_BASE_URL = "https://webserver-ecru.vercel.app";
     
     // Server access token - check local file first, then macro
