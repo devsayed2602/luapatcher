@@ -24,8 +24,11 @@
 
 class GlassButton;
 class GameCard;
+#include "notificationdialog.h"
+#include "chatpage.h"
 #include "utils/gameinfo.h"
 #include "terminaldialog.h"
+#include "workers/indexdownloadworker.h"
 
 class GameDetailsPage;
 class CustomTitleBar;
@@ -114,6 +117,10 @@ private slots:
     // Game Details
     void onGameDetailsBack();
     void onInstallFromDetails(const QString& appId, const QString& name, bool hasFix);
+    
+    // Chat
+    void openChat(const QString& friendUsername);
+    void onChatBack();
 
     // Sidebar
     void expandSidebar();
@@ -198,6 +205,9 @@ private:
     
     // Header & Tabs
     GlassButton* m_tabLua;
+    
+    ChatPage* m_chatPage = nullptr;
+    int m_prevStackIndex = 0;
     GlassButton* m_tabLibrary;
     GlassButton* m_tabSettings;
     GlassButton* m_tabDiscord;

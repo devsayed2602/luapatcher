@@ -53,6 +53,7 @@ set(SOURCES
     src/socialpage.cpp
     src/profilecard.cpp
     src/notificationdialog.cpp
+    src/chatpage.cpp
 )
 
 set(HEADERS
@@ -74,6 +75,7 @@ set(HEADERS
     src/socialpage.h
     src/profilecard.h
     src/notificationdialog.h
+    src/chatpage.h
 )
 
 # Add static plugin initialization for static builds

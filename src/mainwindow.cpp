@@ -1136,6 +1136,11 @@ void MainWindow::initUI() {
     connect(m_gameDetailsPage, &GameDetailsPage::addToLibraryClicked, this, &MainWindow::onInstallFromDetails);
     m_stack->addWidget(m_gameDetailsPage); // index 3
     
+    // index 4: Chat Page
+    m_chatPage = new ChatPage(m_username, "", m_networkManager, this);
+    connect(m_chatPage, &ChatPage::backRequested, this, &MainWindow::onChatBack);
+    m_stack->addWidget(m_chatPage); // index 4
+    
     mainLayout->addWidget(m_stack);
     
     // Progress bar - Material linear progress
@@ -2712,16 +2717,34 @@ void MainWindow::refreshFriendsList() {
         m_userData["friends_count"] = friendsList.size();
         
         for (const QJsonObject& f : friendsList) {
-            QWidget* friendWidget = new QWidget();
-            friendWidget->setFixedHeight(50);
-            QHBoxLayout* lay = new QHBoxLayout(friendWidget);
-            lay->setContentsMargins(0, 5, 0, 5);
+            QPushButton* friendBtn = new QPushButton();
+            friendBtn->setFixedHeight(60);
+            friendBtn->setCursor(Qt::PointingHandCursor);
+            friendBtn->setStyleSheet(
+                "QPushButton {"
+                "  background: transparent;"
+                "  border: none;"
+                "  border-radius: 12px;"
+                "  text-align: left;"
+                "}"
+                "QPushButton:hover {"
+                "  background: rgba(255, 255, 255, 0.05);"
+                "}"
+            );
+            
+            QString fName = f["username"].toString();
+            connect(friendBtn, &QPushButton::clicked, this, [this, fName]() {
+                openChat(fName);
+            });
+
+            QHBoxLayout* lay = new QHBoxLayout(friendBtn);
+            lay->setContentsMargins(10, 5, 10, 5);
             lay->setSpacing(12);
             
             // Avatar
             QLabel* av = new QLabel();
-            av->setFixedSize(40, 40);
-            QPixmap pix(40, 40);
+            av->setFixedSize(44, 44);
+            QPixmap pix(44, 44);
             pix.fill(Qt::transparent);
             QPainter p(&pix);
             p.setRenderHint(QPainter::Antialiasing);
@@ -2732,18 +2755,18 @@ void MainWindow::refreshFriendsList() {
                 original.loadFromData(QByteArray::fromBase64(avUrl.toUtf8()));
                 if (!original.isNull()) {
                     QPainterPath path;
-                    path.addEllipse(0, 0, 40, 40);
+                    path.addEllipse(0, 0, 44, 44);
                     p.setClipPath(path);
-                    p.drawPixmap(0, 0, 40, 40, original.scaled(40, 40, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+                    p.drawPixmap(0, 0, 44, 44, original.scaled(44, 44, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
                     p.setClipping(false);
                 }
             } else {
                 p.setBrush(QColor("#2C3545"));
                 p.setPen(Qt::NoPen);
-                p.drawEllipse(0, 0, 40, 40);
+                p.drawEllipse(0, 0, 44, 44);
                 p.setPen(Qt::white);
                 p.setFont(QFont("Segoe UI", 12, QFont::Bold));
-                p.drawText(pix.rect(), Qt::AlignCenter, f["username"].toString().left(1).toUpper());
+                p.drawText(pix.rect(), Qt::AlignCenter, fName.left(1).toUpper());
             }
             p.end();
             av->setPixmap(pix);
@@ -2751,12 +2774,15 @@ void MainWindow::refreshFriendsList() {
             
             QVBoxLayout* info = new QVBoxLayout();
             info->setSpacing(2);
-            QLabel* name = new QLabel(f["username"].toString());
-            name->setStyleSheet("color: white; font-weight: bold; font-size: 13px;");
+            QLabel* name = new QLabel(fName);
+            name->setStyleSheet("color: white; font-weight: bold; font-size: 13px; background: transparent;");
             
             bool isOnline = f["online"].toBool();
-            QLabel* status = new QLabel(isOnline ? "ONLINE" : "OFFLINE");
-            status->setStyleSheet(QString("color: %1; font-size: 10px; font-weight: bold;")
+            QString statusText = isOnline ? "ONLINE" : "OFFLINE";
+            if (f.contains("activity")) statusText = f["activity"].toString().toUpper();
+
+            QLabel* status = new QLabel(statusText);
+            status->setStyleSheet(QString("color: %1; font-size: 10px; font-weight: bold; background: transparent;")
                                   .arg(isOnline ? "#2ECC71" : "#95A5A6"));
             
             info->addWidget(name);
@@ -2764,9 +2790,31 @@ void MainWindow::refreshFriendsList() {
             lay->addLayout(info);
             lay->addStretch();
             
-            m_friendsLayout->addWidget(friendWidget);
+            m_friendsLayout->addWidget(friendBtn);
         }
     });
+}
+
+void MainWindow::openChat(const QString& friendUsername) {
+    if (!m_chatPage) return;
+    
+    // Switch to chat page
+    m_prevStackIndex = m_stack->currentIndex();
+    
+    // We need to re-create or re-initialize ChatPage with the new friend
+    // For now, let's just delete and re-create to ensure a fresh session
+    m_stack->removeWidget(m_chatPage);
+    delete m_chatPage;
+    
+    m_chatPage = new ChatPage(m_username, friendUsername, m_networkManager, this);
+    connect(m_chatPage, &ChatPage::backRequested, this, &MainWindow::onChatBack);
+    m_stack->insertWidget(4, m_chatPage);
+    
+    m_stack->setCurrentIndex(4);
+}
+
+void MainWindow::onChatBack() {
+    m_stack->setCurrentIndex(m_prevStackIndex);
 }
 
 void MainWindow::showBlurOverlay() {
