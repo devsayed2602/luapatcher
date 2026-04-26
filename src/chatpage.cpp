@@ -31,11 +31,22 @@ void ChatPage::setupUI() {
     header->setFixedHeight(70);
     QHBoxLayout* headerLayout = new QHBoxLayout(header);
     headerLayout->setContentsMargins(0, 0, 0, 0);
+    headerLayout->setSpacing(16);
 
-    QPushButton* backBtn = new QPushButton("<");
-    backBtn->setFixedSize(32, 32);
+    QPushButton* backBtn = new QPushButton("← Back");
+    backBtn->setFixedSize(90, 36);
     backBtn->setCursor(Qt::PointingHandCursor);
-    backBtn->setStyleSheet("color: rgba(255, 255, 255, 0.6); font-size: 20px; border: none; background: transparent;");
+    backBtn->setStyleSheet(
+        "QPushButton {"
+        "  font-size: 14px; font-weight: bold; color: #EFECE3;"
+        "  background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1);"
+        "  border-radius: 18px; padding: 6px 16px;"
+        "  font-family: 'Segoe UI';"
+        "}"
+        "QPushButton:hover {"
+        "  background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.25);"
+        "}"
+    );
     connect(backBtn, &QPushButton::clicked, this, &ChatPage::backRequested);
     headerLayout->addWidget(backBtn);
 

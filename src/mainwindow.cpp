@@ -2798,8 +2798,11 @@ void MainWindow::refreshFriendsList() {
 void MainWindow::openChat(const QString& friendUsername) {
     if (!m_chatPage) return;
     
-    // Switch to chat page
-    m_prevStackIndex = m_stack->currentIndex();
+    // Only save the previous index if we are NOT already on the chat page
+    // This prevents getting trapped if we click multiple friends in a row
+    if (m_stack->currentIndex() != 4) {
+        m_prevStackIndex = m_stack->currentIndex();
+    }
     
     // We need to re-create or re-initialize ChatPage with the new friend
     // For now, let's just delete and re-create to ensure a fresh session
