@@ -199,14 +199,16 @@ void ChatPage::onHistoryFetched() {
     QJsonArray arr = doc.array();
     
     // Optimization: Only redraw if count changed or for first load
-    static int lastCount = 0;
-    if (arr.size() == lastCount) return;
-    lastCount = arr.size();
+    if (arr.size() == m_lastMessageCount) return;
+    m_lastMessageCount = arr.size();
 
     // Clear old messages (except stretch)
     while (m_chatLayout->count() > 1) {
         QLayoutItem* item = m_chatLayout->takeAt(0);
-        if (item->widget()) delete item->widget();
+        if (item->widget()) {
+            item->widget()->hide();
+            item->widget()->deleteLater();
+        }
         delete item;
     }
 
@@ -216,10 +218,14 @@ void ChatPage::onHistoryFetched() {
         QString text = obj["message_text"].toString();
         QString timeStr = obj["created_at"].toString();
         
-        // Parse timestamp for display
+        // Parse timestamp for display (e.g. 2024-04-26T14:22:56...)
         QDateTime dt = QDateTime::fromString(timeStr, Qt::ISODate);
-        QString displayTime = dt.isNull() ? "" : dt.toString("h:mm AP");
+        QString displayTime = dt.isNull() ? "" : dt.toLocalTime().toString("h:mm AP");
 
         addMessageBubble(text, sender == m_myUsername, displayTime);
     }
+    
+    // Final scroll to bottom after population
+    QScrollBar* vBar = m_scrollArea->verticalScrollBar();
+    vBar->setValue(vBar->maximum());
 }

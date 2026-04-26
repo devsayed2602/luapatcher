@@ -46,7 +46,7 @@ private:
     QLabel* m_friendNameLabel;
     QLabel* m_statusLabel;
     
-    QString m_lastMessageId;
+    int m_lastMessageCount = 0;
 };
 
 #endif // CHATPAGE_H
