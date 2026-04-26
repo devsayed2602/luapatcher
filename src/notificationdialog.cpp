@@ -354,7 +354,11 @@ void NotificationDialog::fetchPendingRequests() {
             delete item;
         }
 
-        if (arr.isEmpty()) {
+        if (m_hasUpdate) {
+            m_requestsLayout->insertWidget(0, createUpdateCard());
+        }
+
+        if (arr.isEmpty() && !m_hasUpdate) {
             m_scrollArea->hide();
             m_emptyLabel->show();
         } else {
