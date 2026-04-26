@@ -528,7 +528,9 @@ void NotificationDialog::onDownloadFinished() {
 
     m_downloadFile->close();
 
-    if (m_downloadReply->error() == QNetworkReply::NoError) {
+    int statusCode = m_downloadReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+
+    if (m_downloadReply->error() == QNetworkReply::NoError && statusCode >= 200 && statusCode < 300) {
         if (m_dlBtn) m_dlBtn->setText("INSTALLING...");
         
         // Launch installer detached and quit
