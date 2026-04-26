@@ -14,6 +14,11 @@
 
 #include <QDesktopServices>
 #include <QUrl>
+#include <QStandardPaths>
+#include <QProcess>
+#include <QApplication>
+#include <QFileInfo>
+#include <QDir>
 
 NotificationDialog::NotificationDialog(const QString& currentUsername, QNetworkAccessManager* netMgr, 
                                        bool hasUpdate, const QString& updateVersion, 
@@ -194,26 +199,28 @@ QWidget* NotificationDialog::createUpdateCard() {
     l->addStretch();
 
     // Download Button
-    QPushButton* dlBtn = new QPushButton("DOWNLOAD");
-    dlBtn->setFixedSize(100, 32);
-    dlBtn->setCursor(Qt::PointingHandCursor);
-    dlBtn->setStyleSheet(
+    m_dlBtn = new QPushButton("DOWNLOAD");
+    m_dlBtn->setFixedSize(140, 32); // Slightly wider to fit "DOWNLOADING (100%)"
+    m_dlBtn->setCursor(Qt::PointingHandCursor);
+    m_dlBtn->setStyleSheet(
         "QPushButton {"
         "  background: #00E676;"
         "  color: black;"
         "  font-weight: 800;"
-        "  font-size: 12px;"
+        "  font-size: 11px;"
         "  border-radius: 8px;"
         "  border: none;"
         "}"
         "QPushButton:hover {"
         "  background: #00C853;"
         "}"
+        "QPushButton:disabled {"
+        "  background: rgba(0, 230, 118, 0.4);"
+        "  color: rgba(255, 255, 255, 0.7);"
+        "}"
     );
-    connect(dlBtn, &QPushButton::clicked, this, [this]() {
-        QDesktopServices::openUrl(QUrl(m_updateUrl));
-    });
-    l->addWidget(dlBtn);
+    connect(m_dlBtn, &QPushButton::clicked, this, &NotificationDialog::startUpdateDownload);
+    l->addWidget(m_dlBtn);
 
     return card;
 }
@@ -467,4 +474,76 @@ void NotificationDialog::showEvent(QShowEvent* event) {
 
 void NotificationDialog::onClose() {
     close();
+}
+
+void NotificationDialog::startUpdateDownload() {
+    if (!m_netMgr || m_updateUrl.isEmpty()) return;
+    
+    if (m_dlBtn) {
+        m_dlBtn->setEnabled(false);
+        m_dlBtn->setText("DOWNLOADING (0%)");
+    }
+
+    QUrl url(m_updateUrl);
+    QNetworkRequest request(url);
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+
+    m_downloadReply = m_netMgr->get(request);
+
+    QString tempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+    QDir().mkpath(tempPath);
+    QString filePath = tempPath + "/LuaPatcher_Installer.exe";
+
+    m_downloadFile = new QFile(filePath);
+    if (!m_downloadFile->open(QIODevice::WriteOnly)) {
+        if (m_dlBtn) {
+            m_dlBtn->setText("ERROR");
+            m_dlBtn->setEnabled(true);
+        }
+        m_downloadReply->deleteLater();
+        m_downloadReply = nullptr;
+        delete m_downloadFile;
+        m_downloadFile = nullptr;
+        return;
+    }
+
+    connect(m_downloadReply, &QNetworkReply::readyRead, this, [this]() {
+        if (m_downloadFile && m_downloadReply) {
+            m_downloadFile->write(m_downloadReply->readAll());
+        }
+    });
+    connect(m_downloadReply, &QNetworkReply::downloadProgress, this, &NotificationDialog::onDownloadProgress);
+    connect(m_downloadReply, &QNetworkReply::finished, this, &NotificationDialog::onDownloadFinished);
+}
+
+void NotificationDialog::onDownloadProgress(qint64 bytesReceived, qint64 bytesTotal) {
+    if (m_dlBtn && bytesTotal > 0) {
+        int percent = static_cast<int>((bytesReceived * 100) / bytesTotal);
+        m_dlBtn->setText(QString("DOWNLOADING (%1%)").arg(percent));
+    }
+}
+
+void NotificationDialog::onDownloadFinished() {
+    if (!m_downloadReply || !m_downloadFile) return;
+
+    m_downloadFile->close();
+
+    if (m_downloadReply->error() == QNetworkReply::NoError) {
+        if (m_dlBtn) m_dlBtn->setText("INSTALLING...");
+        
+        // Launch installer detached and quit
+        QString filePath = m_downloadFile->fileName();
+        QProcess::startDetached(filePath, QStringList());
+        QApplication::quit();
+    } else {
+        if (m_dlBtn) {
+            m_dlBtn->setText("FAILED");
+            m_dlBtn->setEnabled(true);
+        }
+    }
+
+    m_downloadReply->deleteLater();
+    m_downloadReply = nullptr;
+    delete m_downloadFile;
+    m_downloadFile = nullptr;
 }

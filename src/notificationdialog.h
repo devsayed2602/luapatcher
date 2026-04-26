@@ -10,6 +10,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QPointer>
+#include <QFile>
 
 class NotificationDialog : public QDialog {
     Q_OBJECT
@@ -28,6 +29,9 @@ protected:
 
 private slots:
     void onClose();
+    void startUpdateDownload();
+    void onDownloadProgress(qint64 bytesReceived, qint64 bytesTotal);
+    void onDownloadFinished();
 
 private:
     void setupUI();
@@ -53,6 +57,11 @@ private:
     QLabel* m_emptyLabel;
     QPushButton* m_closeBtn;
     int m_pendingCount = 0;
+    
+    // In-App Update Download
+    QPushButton* m_dlBtn = nullptr;
+    QNetworkReply* m_downloadReply = nullptr;
+    QFile* m_downloadFile = nullptr;
 };
 
 #endif // NOTIFICATIONDIALOG_H
